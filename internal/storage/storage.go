@@ -57,6 +57,17 @@ func copyDirectory(src, dst string) error {
 	})
 }
 
+// SyncWorkingCopyToOriginal copies the working copy back to the original project directory.
+func SyncWorkingCopyToOriginal(workingCopyRoot, originalRoot string) error {
+	if workingCopyRoot == "" || originalRoot == "" {
+		return fmt.Errorf("working copy and original project root are required")
+	}
+	if err := os.MkdirAll(originalRoot, 0o755); err != nil {
+		return err
+	}
+	return copyDirectory(workingCopyRoot, originalRoot)
+}
+
 // EnsureDirectory creates a directory path when needed.
 func EnsureDirectory(path string) error {
 	return os.MkdirAll(path, 0o755)

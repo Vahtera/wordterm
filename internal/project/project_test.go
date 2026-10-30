@@ -81,3 +81,35 @@ func TestCreateWorkingCopyCopiesProjectFiles(t *testing.T) {
 		t.Fatalf("working copy should include metadata: %v", err)
 	}
 }
+
+func TestSyncWorkingCopyToOriginal(t *testing.T) {
+	dir := t.TempDir()
+	chapterDir := filepath.Join(dir, "Chapter 1")
+	if err := os.MkdirAll(chapterDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, MetadataFileName), []byte(`{"name":"Example","author":"Author","format_version":1,"last_opened_scene":{"chapter":"Chapter 1","scene":"Scene 1"},"chapters":[{"name":"Chapter 1","scenes":["Scene 1"]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(chapterDir, "Scene 1.txt"), []byte("before"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	copyRoot, err := storage.CreateWorkingCopy(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(copyRoot, "Chapter 1", "Scene 1.txt"), []byte("after"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := storage.SyncWorkingCopyToOriginal(copyRoot, dir); err != nil {
+		t.Fatalf("sync copy back to project failed: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(dir, "Chapter 1", "Scene 1.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "after" {
+		t.Fatalf("expected saved contents to be updated, got %q", string(content))
+	}
+}
