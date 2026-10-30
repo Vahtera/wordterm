@@ -1,11 +1,15 @@
 package project
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
 )
+
+const MetadataFileName = "project.json"
 
 // Chapter represents a writing chapter and preserves ordering in JSON metadata.
 type Chapter struct {
@@ -50,6 +54,107 @@ func NewProject(name, author string) *Project {
 		},
 		LastOpenedScene: LastOpenedScene{Chapter: chapterName, Scene: "Scene 1"},
 	}
+}
+
+// LoadProject reads metadata and validates the project from disk.
+func LoadProject(projectDir string) (*Project, error) {
+	if projectDir == "" {
+		return nil, fmt.Errorf("project directory is required")
+	}
+	metaPath := filepath.Join(projectDir, MetadataFileName)
+	data, err := os.ReadFile(metaPath)
+	if err != nil {
+		return nil, fmt.Errorf("read project metadata: %w", err)
+	}
+
+	p := &Project{Root: projectDir, WorkingCopyRoot: projectDir}
+	if err := json.Unmarshal(data, p); err != nil {
+		return nil, fmt.Errorf("parse project metadata: %w", err)
+	}
+	if p.Name == "" {
+		return nil, fmt.Errorf("project name is required")
+	}
+	if len(p.Chapters) == 0 {
+		return nil, fmt.Errorf("project contains no chapters")
+	}
+	p.Root = projectDir
+	p.WorkingCopyRoot = projectDir
+	for i := range p.Chapters {
+		if p.Chapters[i].Name == "" {
+			return nil, fmt.Errorf("chapter name is required")
+		}
+		p.Chapters[i].Path = filepath.Join(projectDir, p.Chapters[i].Name)
+		for _, sceneName := range p.Chapters[i].Scenes {
+			if sceneName == "" {
+				continue
+			}
+			scenePath := filepath.Join(projectDir, p.Chapters[i].Name, sceneName+".txt")
+			if _, err := os.Stat(scenePath); err != nil {
+				return nil, fmt.Errorf("missing scene file %q: %w", sceneName, err)
+			}
+		}
+	}
+	p.EnsureLastOpenedScene()
+	return p, nil
+}
+
+// Save writes the project metadata and scene files to the configured root directory.
+func (p *Project) Save() error {
+	if p == nil {
+		return fmt.Errorf("project is nil")
+	}
+	if p.Root == "" {
+		return fmt.Errorf("project root is not set")
+	}
+	return SaveProject(p, p.Root)
+}
+
+// SaveProject writes a complete project snapshot to the target directory.
+func SaveProject(p *Project, dir string) error {
+	if p == nil {
+		return fmt.Errorf("project is nil")
+	}
+	if dir == "" {
+		return fmt.Errorf("directory is required")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create project directory: %w", err)
+	}
+	p.Root = dir
+	p.WorkingCopyRoot = dir
+	if len(p.Chapters) == 0 {
+		p.Chapters = []Chapter{{Name: "Chapter 1", Scenes: []string{"Scene 1"}, Path: filepath.Join(dir, "Chapter 1")}}
+	}
+	for i := range p.Chapters {
+		if p.Chapters[i].Name == "" {
+			return fmt.Errorf("chapter name is required")
+		}
+		chapterDir := filepath.Join(dir, p.Chapters[i].Name)
+		if err := os.MkdirAll(chapterDir, 0o755); err != nil {
+			return fmt.Errorf("create chapter directory: %w", err)
+		}
+		p.Chapters[i].Path = chapterDir
+		for _, sceneName := range p.Chapters[i].Scenes {
+			if sceneName == "" {
+				continue
+			}
+			scenePath := filepath.Join(chapterDir, sceneName+".txt")
+			if _, err := os.Stat(scenePath); err != nil {
+				if err := os.WriteFile(scenePath, []byte(""), 0o644); err != nil {
+					return fmt.Errorf("create scene file %q: %w", sceneName, err)
+				}
+			}
+		}
+	}
+	p.EnsureLastOpenedScene()
+	metaData, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal project metadata: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, MetadataFileName), metaData, 0o644); err != nil {
+		return fmt.Errorf("write project metadata: %w", err)
+	}
+	return nil
 }
 
 // CountWords returns the number of whitespace-delimited words in the provided text.

@@ -2,21 +2,59 @@ package storage
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
 
-// CreateWorkingCopy creates a new temporary project mirror for the active session.
+// CreateWorkingCopy creates a temporary project mirror for the active session.
 func CreateWorkingCopy(projectRoot string) (string, error) {
+	if projectRoot == "" {
+		return "", fmt.Errorf("project root is required")
+	}
 	base := filepath.Join(os.TempDir(), "wordterm")
 	if err := os.MkdirAll(base, 0o755); err != nil {
 		return "", err
 	}
-	copyRoot := filepath.Join(base, fmt.Sprintf("%s-%d", filepath.Base(projectRoot), os.Getpid()))
-	if err := os.MkdirAll(copyRoot, 0o755); err != nil {
+	copyRoot, err := os.MkdirTemp(base, filepath.Base(projectRoot)+"-")
+	if err != nil {
+		return "", err
+	}
+	if err := copyDirectory(projectRoot, copyRoot); err != nil {
+		_ = os.RemoveAll(copyRoot)
 		return "", err
 	}
 	return copyRoot, nil
+}
+
+func copyDirectory(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode())
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		if _, err := io.Copy(out, in); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // EnsureDirectory creates a directory path when needed.
