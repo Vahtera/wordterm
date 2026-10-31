@@ -127,4 +127,4 @@ writes to the original.
 
 ## License
 
-MIT, see LICENSE.
+GPLv3, see LICENSE.
