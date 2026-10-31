@@ -5,7 +5,7 @@ Plain-text files, no lock-in, one standalone executable per platform.
 
 Written in Go with Bubble Tea v2, Lip Gloss and Bubbles-era Charm libraries.
 
-![wordterm default window](https://github.com/Vahtera/wordterm/default.png?raw=true)
+![wordterm default window](https://github.com/Vahtera/wordterm/default_screen.png)
 
 ## Install / build
 
