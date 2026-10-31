@@ -1,3 +1,5 @@
+// Copyright 2026 Anna Vahtera. Under GPLv3 or later. See LICENSE.md for details.
+
 package main
 
 import (
