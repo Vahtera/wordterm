@@ -5,6 +5,8 @@ Plain-text files, no lock-in, one standalone executable per platform.
 
 Written in Go with Bubble Tea v2, Lip Gloss and Bubbles-era Charm libraries.
 
+![wordterm default window](https://github.com/Vahtera/wordterm/default.png?raw=true)
+
 ## Install / build
 
 You need Go (the version in `go.mod`).
@@ -73,6 +75,8 @@ Help: About..., Keys.
     └── Chapter2/
         └── Scene1_2.txt        stored under a different file name if a move would clash
 
+![wordterm Example Project](https://github.com/Vahtera/wordterm/example_project.png?raw=true)
+
 The project folder must contain exactly one `.json` file. Chapter and scene order is stored in the JSON.
 A scene is a plain string in the JSON, or `{"name": "Scene1", "file": "Scene1_2"}` when its file name had
 to differ from its name. Line endings are saved as LF.
@@ -93,6 +97,8 @@ the original.
 
 Shows only the writing column (width = Write Size), centred, with the cursor line kept in the vertical middle.
 Prompts and messages appear on the bottom row only when needed.
+
+![wordterm with Screenwriter Mode enabled.](https://github.com/Vahtera/wordterm/screenwriter_mode.png?raw=true)
 
 ## Settings file
 
