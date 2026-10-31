@@ -1,61 +1,130 @@
 # Wordterm
 
-Distraction-free terminal writing app for chapter-based projects (Go, Bubble Tea v2, Lip Gloss).
+A distraction-free terminal writing app for chapter-based projects such as novels.
+Plain-text files, no lock-in, one standalone executable per platform.
 
-## Build and run
+Written in Go with Bubble Tea v2, Lip Gloss and Bubbles-era Charm libraries.
 
-    go get charm.land/bubbletea/v2@latest charm.land/lipgloss/v2@latest
-    go get github.com/charmbracelet/x/ansi@latest github.com/rivo/uniseg@latest github.com/BurntSushi/toml@latest
-    go mod tidy
-    go test ./...
-    go run .                                       # built-in read-only help; Esc > File > New Project
-    go run . ~/Documents/Example                   # open an existing project (explicit path)
-    go run . Example                               # bare name: default save path first, then the current directory
-    go run . new Example -path ~/Documents -author "Your Name"   # create a project and open it
+## Install / build
 
-Cross-compile: `GOOS=windows GOARCH=arm64 go build -o wordterm.exe .` (same pattern for linux/darwin, amd64/arm64).
+You need Go (the version in `go.mod`).
 
-Scene entries in the JSON are plain names, or `{"name": "Intro", "file": "Intro_2"}` when a move had
-to avoid a file-name clash in the target chapter (the scene keeps its name, only the file is suffixed).
+    go mod tidy                 # first time: fetches dependencies and writes go.sum
+    go run .                    # try it
+    ./build.sh                  # vet + test + build all targets into dist/
+    ./build.sh --native         # only this machine
+    .\build.ps1                 # same as build.sh, for PowerShell
 
-## Working-copy rule
+`dist/` then holds `wordterm-{linux,windows,darwin}-{amd64,arm64}[.exe]` and `SHA256SUMS`.
+Copy the file for your system anywhere on your PATH. No other files are needed.
+`VERSION=1.2.3 ./build.sh` stamps the version shown in Help > About.
 
-The project is copied to a temp working copy (`<os temp>/wordterm/session-*/project`). All app
-reads and writes use that copy. The original is touched only by Save (F10).
-After a crash the copy is kept; on next launch you are asked to recover or discard it.
+Dependencies: bubbletea v2, lipgloss v2, charmbracelet/x/ansi, rivo/uniseg, BurntSushi/toml.
+If you start from a fresh checkout without `go.mod`: `go mod init wordterm`, then
+`go get charm.land/bubbletea/v2 charm.land/lipgloss/v2 github.com/charmbracelet/x/ansi github.com/rivo/uniseg github.com/BurntSushi/toml` and `go mod tidy`.
 
-## Status
+## Usage
 
-- Phase 1 (foundation): done.
-- Phase 2 (project management): done.
-- Phase 3 (editor): grapheme-aware text buffer, word wrap, scrolling, undo/redo, paste. Focus the
-  editor with F3 and type. Edits live in memory and are written to the working copy every 2 s, on
-  F10/F9 and on quit; the original changes only on F10. Navigator is still a read-only tree
-  (Phase 4). Keys: arrows, Home/End, PgUp/PgDn, Backspace/Delete, Ctrl+Z undo, Ctrl+Y redo,
-  F3 pane, F9 reload, F10 save, Ctrl+Q quit. Quitting with unsaved edits keeps the working copy
-  and offers recovery on next start (quit prompt arrives in Phase 5).
-- Phase 4 (navigator): Up/Down/Left/Right navigate the tree (Navigator focused), Enter opens a scene or
-  toggles a chapter, `+` add, `-` delete (chapter must be empty), F2 rename, F5/F6 move (scenes cross
-  chapter edges and the file moves too). Selection is drawn in inverted colours. Questions and name
-  prompts appear in the status bar until the dialog system arrives in Phase 5. F9/F10 and quit now ask
-  for confirmation. Undo history is per open scene (reset when you switch scenes).
-- Phase 5 (menus and settings): Esc opens the main menu (File / Settings / Help; arrows + Enter).
-  File: New Project..., Save, Save As..., Quit. Settings: Editor Size and Write Size (arrows adjust live,
-  Enter finishes), Rebind Keys, Word Wrap (on = wrap at Write Size, off = horizontal scroll), Autosave
-  (off by default; interval in config.toml). Help: About, Keys (same as F1). All settings persist in
-  `<user config dir>/wordterm/config.toml` (Linux: ~/.config/wordterm/config.toml). Esc cannot be rebound.
-  Autosave and Save As are included; the About text assumes an MIT license and "The Wordterm authors" —
-  edit `internal/app/overlays.go` if that is wrong.
-- Added after Phase 5: Settings > Default Save Path and Author Name (used by File > New Project and by
-  `wordterm new` when `-path` / `-author` are not given; New Project then asks only for a name).
-  Running `wordterm` with no arguments opens a read-only built-in project (chapter "Help", scene "Keys",
-  same text as F1); any attempt to edit, save or restructure it offers to create a new project instead.
-- Phase 6: Screenwriter Mode (F11 or Settings > Screenwriter Mode): only the writing column is shown, the
-  cursor row stays vertically centred, the column (Write Size wide) is horizontally centred; prompts and
-  messages appear on the bottom row only when needed. Safety: if the original project was changed outside
-  Wordterm (or the session was recovered after a crash), Save asks before overwriting, and autosave pauses
-  instead of overwriting.
-- File > Open Project...: a folder browser that starts in the Default Save Path (or your home folder). Up/Down
-  move, Enter opens a folder that contains a project `.json` (marked `[project]`) or goes into any other
-  folder, Left goes up, Esc cancels.
-- Phase 7 (cross-platform testing, builds, documentation): not started.
+    wordterm                                    built-in read-only help (chapter Help, scene Keys)
+    wordterm <project-dir>                      open a project
+    wordterm <name>                             open a project by name: Default Save Path first, then ./<name>
+    wordterm new <name> [-path DIR] [-author NAME]
+                                                create a project and open it (DIR and author default to Settings)
+
+Without arguments you get a read-only copy of the key list. Press Esc > File > New Project to start writing.
+
+### Keys (defaults; all except Esc can be rebound in Settings > Rebind Keys)
+
+| Key | Action |
+|---|---|
+| Esc | Main menu (fixed) |
+| F1 | Help (current bindings) |
+| F3 | Switch pane (Navigator / Editor) |
+| F11 | Screenwriter Mode on/off |
+| F10 / F9 | Save / Reload project (both ask first) |
+| Ctrl+Q, Ctrl+C | Quit (asks Save / Discard / Cancel if there are unsaved changes) |
+| Ctrl+Z / Ctrl+Y | Undo / redo (per open scene) |
+| Navigator: arrows, Enter | Move, collapse/expand, open scene |
+| Navigator: `+` `-` | Add / delete item (a chapter must be empty before it can be deleted) |
+| Navigator: F2 | Rename |
+| Navigator: F5 / F6 | Move up / down (scenes cross chapter borders; the file moves too) |
+
+The default pane switch is F3 rather than Ctrl+Tab because most terminals cannot report Ctrl+Tab.
+
+### Menus
+
+File: New Project..., Open Project..., Save, Save As..., Quit.
+Settings: Editor Size, Write Size, Screenwriter Mode, Rebind Keys, Word Wrap, Autosave, Default Save Path..., Author Name...
+Help: About..., Keys.
+
+## Projects
+
+    Example/
+    ├── Example.json            metadata: names, order, last opened scene, format version
+    ├── Chapter1/
+    │   ├── Scene1.txt          UTF-8 plain text
+    │   └── Scene2.txt
+    └── Chapter2/
+        └── Scene1_2.txt        stored under a different file name if a move would clash
+
+The project folder must contain exactly one `.json` file. Chapter and scene order is stored in the JSON.
+A scene is a plain string in the JSON, or `{"name": "Scene1", "file": "Scene1_2"}` when its file name had
+to differ from its name. Line endings are saved as LF.
+
+### Working copy and saving
+
+Opening a project copies it to a temporary working copy (`<temp dir>/wordterm/session-*`).
+Everything you do happens in that copy. **The original is only written by Save, Save As and Autosave.**
+Switching scenes or chapters never discards edits. If the original was changed outside Wordterm since you
+opened it, Save asks before overwriting it, and autosave pauses instead of overwriting.
+
+If Wordterm is killed or crashes, the working copy stays. The next start offers to **R**ecover,
+**D**iscard or **S**kip each leftover copy. Edits are written to the working copy every 2 seconds, so at most
+the last couple of seconds of typing can be lost. After recovering, the first Save asks once before overwriting
+the original.
+
+### Screenwriter Mode
+
+Shows only the writing column (width = Write Size), centred, with the cursor line kept in the vertical middle.
+Prompts and messages appear on the bottom row only when needed.
+
+## Settings file
+
+Created on first change; plain TOML. Location: `~/.config/wordterm/config.toml` (Linux),
+`~/Library/Application Support/wordterm/config.toml` (macOS), `%AppData%\wordterm\config.toml` (Windows).
+
+    editor_width = 0            # 0 = default (70% of the window)
+    write_size = 0              # 0 = same as the editor width
+    word_wrap = true
+    autosave = false            # off by default
+    autosave_interval = 60      # seconds, minimum 5
+    default_save_path = ""
+    author_name = ""
+
+    [keys]
+    save = "f10"                # one entry per action; see Settings > Rebind Keys
+
+A config file that cannot be parsed is renamed to `config.toml.broken` and defaults are used.
+
+## Known limitations
+
+- Undo history is kept per open scene and is reset when you switch scenes.
+- No selection, cut or copy inside the editor (paste from the terminal works).
+- Text widths follow Unicode rules; a few terminals disagree on emoji or ambiguous-width characters, which
+  can shift the cursor on those lines.
+- Open Project cannot switch between drive letters on Windows.
+- Autosave interval is set in the config file, not in a menu.
+- Developed and tested on Fedora (KDE) with Kitty. Other systems and terminals follow the checklist in TESTING.md.
+
+## Development
+
+    go vet ./... && go test ./...
+
+Layout: `internal/app` (model, menus, dialogs), `editor` (text buffer), `navigator` (tree), `project`
+(format and operations), `storage` (working copy, atomic writes, recovery), `settings` (TOML, key bindings),
+`ui` (layout and drawing helpers). Rule: the app only ever touches the working copy; only `storage.Session`
+writes to the original.
+
+## License
+
+MIT, see LICENSE.

@@ -8,7 +8,8 @@ import (
 	"wordterm/internal/ui"
 )
 
-const Version = "0.5.0"
+// Version is set at build time: -ldflags "-X wordterm/internal/app.Version=1.2.3"
+var Version = "1.0.0-dev"
 
 // helpLines is the key list shown by F1 and by the built-in help project.
 func (m Model) helpLines() []string {
