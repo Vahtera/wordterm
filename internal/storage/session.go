@@ -1,0 +1,146 @@
+package storage
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+// Session is one editing session: a temporary working copy of Original.
+// Root is the working copy and the only tree the app may touch.
+type Session struct {
+	Original string
+	Dir      string // session directory under the OS temp dir
+	Root     string // Dir/project
+}
+
+type info struct {
+	Original string    `json:"original"`
+	PID      int       `json:"pid"`
+	Started  time.Time `json:"started"`
+}
+
+const infoFile = "session.json"
+
+func baseDir() string { return filepath.Join(os.TempDir(), "wordterm") }
+
+// Open creates a working copy of the project in original. original is only read.
+func Open(original string) (*Session, error) {
+	st, err := os.Stat(original)
+	if err != nil {
+		return nil, err
+	}
+	if !st.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory", original)
+	}
+	abs, err := filepath.Abs(original)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(baseDir(), 0o700); err != nil {
+		return nil, err
+	}
+	dir, err := os.MkdirTemp(baseDir(), "session-*")
+	if err != nil {
+		return nil, err
+	}
+	s := &Session{Original: abs, Dir: dir, Root: filepath.Join(dir, "project")}
+	if err := CopyTree(abs, s.Root); err != nil {
+		os.RemoveAll(dir)
+		return nil, fmt.Errorf("creating working copy: %w", err)
+	}
+	if err := s.writeInfo(time.Now()); err != nil {
+		os.RemoveAll(dir)
+		return nil, err
+	}
+	return s, nil
+}
+
+func (s *Session) writeInfo(started time.Time) error {
+	data, err := json.MarshalIndent(info{s.Original, os.Getpid(), started}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return WriteFileAtomic(filepath.Join(s.Dir, infoFile), data, 0o600)
+}
+
+// Save synchronises the working copy into the original project.
+// On failure the working copy is untouched.
+func (s *Session) Save() error { return SyncTree(s.Root, s.Original) }
+
+// HasChanges reports whether the working copy differs from the original.
+func (s *Session) HasChanges() (bool, error) {
+	eq, err := TreesEqual(s.Root, s.Original)
+	return !eq, err
+}
+
+// Reload replaces the working copy with a fresh copy of the original.
+// The old working copy is only removed once the new one is in place.
+func (s *Session) Reload() error {
+	fresh, old := s.Root+".new", s.Root+".old"
+	os.RemoveAll(fresh)
+	os.RemoveAll(old)
+	if err := CopyTree(s.Original, fresh); err != nil {
+		os.RemoveAll(fresh)
+		return err
+	}
+	if err := os.Rename(s.Root, old); err != nil {
+		os.RemoveAll(fresh)
+		return err
+	}
+	if err := os.Rename(fresh, s.Root); err != nil {
+		os.Rename(old, s.Root)
+		return err
+	}
+	os.RemoveAll(old)
+	return nil
+}
+
+// Close deletes the working copy. Call it only on a normal exit when the
+// copy is no longer needed.
+func (s *Session) Close() error { return os.RemoveAll(s.Dir) }
+
+// Recoverable is a working copy left behind by a process that no longer runs.
+type Recoverable struct {
+	Dir, Root, Original string
+	Started             time.Time
+}
+
+// FindRecoverable lists working copies whose owning process is gone.
+func FindRecoverable() ([]Recoverable, error) {
+	entries, err := os.ReadDir(baseDir())
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out []Recoverable
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dir := filepath.Join(baseDir(), e.Name())
+		data, err := os.ReadFile(filepath.Join(dir, infoFile))
+		if err != nil {
+			continue
+		}
+		var in info
+		if json.Unmarshal(data, &in) != nil || pidAlive(in.PID) {
+			continue
+		}
+		out = append(out, Recoverable{dir, filepath.Join(dir, "project"), in.Original, in.Started})
+	}
+	return out, nil
+}
+
+// Adopt takes over a recoverable working copy for the current process.
+func Adopt(r Recoverable) (*Session, error) {
+	s := &Session{Original: r.Original, Dir: r.Dir, Root: r.Root}
+	return s, s.writeInfo(r.Started)
+}
+
+// Discard permanently deletes a recoverable working copy.
+func Discard(r Recoverable) error { return os.RemoveAll(r.Dir) }
