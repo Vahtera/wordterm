@@ -9,6 +9,9 @@ Written in Go with Bubble Tea v2, Lip Gloss and Bubbles-era Charm libraries.
 
 ## Install / build
 
+[!TIP]
+Grab pre-built binaries for Linux/Mac/Windows x86/arm from releases.
+
 You need Go (the version in `go.mod`).
 
     go install github.com/Vahtera/wordterm@latest     # installs the `wordterm` command
