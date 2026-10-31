@@ -34,7 +34,7 @@ func (m Model) helpBox() string {
 func (m Model) aboutBox() string {
 	return boxStyle.Render(strings.Join([]string{
 		"Wordterm", "Version " + Version, "",
-		"Copyright © 2026 The Wordterm authors", "License: MIT", "", "Esc or Q closes"}, "\n"))
+		"Copyright © 2026 Anna Vahtera", "License: GPLv3", "", "Esc or Q closes"}, "\n"))
 }
 
 type rebindState struct {
