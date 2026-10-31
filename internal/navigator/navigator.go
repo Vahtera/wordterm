@@ -19,7 +19,7 @@ const (
 // Item identifies a tree row. Selection is kept by identity, so it survives edits.
 type Item struct {
 	Kind            Kind
-	Chapter, Scene string
+	Chapter, Scene string // Scene is the scene's File key
 }
 
 type Navigator struct {
@@ -40,7 +40,7 @@ func (n *Navigator) items(m *project.Meta) []Item {
 			continue
 		}
 		for _, s := range c.Scenes {
-			items = append(items, Item{Scene, c.Name, s})
+			items = append(items, Item{Scene, c.Name, s.File})
 		}
 	}
 	return items
@@ -152,7 +152,7 @@ func (n *Navigator) label(m *project.Meta, it Item, open project.SceneRef) strin
 	if m.SceneIndex(it.Chapter, it.Scene) == len(m.Chapters[ci].Scenes)-1 {
 		branch = "└─ "
 	}
-	s := pad + branch + it.Scene
+	s := pad + branch + m.SceneName(it.Chapter, it.Scene)
 	if open == (project.SceneRef{Chapter: it.Chapter, Scene: it.Scene}) {
 		s += " ◂"
 	}

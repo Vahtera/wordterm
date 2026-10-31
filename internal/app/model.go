@@ -394,12 +394,12 @@ func (m *Model) addItem() {
 		at = meta.SceneIndex(ch, it.Scene) + 1
 	}
 	m.askText("New scene name:", "", func(m *Model, name string) tea.Cmd {
-		if err := m.proj.AddScene(ch, at, name); err != nil {
+		ref, err := m.proj.AddScene(ch, at, name)
+		if err != nil {
 			return m.fail(err)
 		}
-		ref := project.SceneRef{Chapter: ch, Scene: name}
 		m.nav.Expand(ch)
-		m.nav.Select(navigator.Item{Kind: navigator.Scene, Chapter: ch, Scene: name})
+		m.nav.Select(navigator.Item{Kind: navigator.Scene, Chapter: ch, Scene: ref.Scene})
 		if !m.hasScene() {
 			m.openScene(ref)
 		}
@@ -429,7 +429,7 @@ func (m *Model) deleteItem() {
 		})
 	case navigator.Scene:
 		ref := project.SceneRef{Chapter: it.Chapter, Scene: it.Scene}
-		m.ask(fmt.Sprintf("Delete scene '%s'? (y/n)", it.Scene), "yn", func(m *Model, a string) tea.Cmd {
+		m.ask(fmt.Sprintf("Delete scene '%s'? (y/n)", meta.SceneName(it.Chapter, it.Scene)), "yn", func(m *Model, a string) tea.Cmd {
 			if a != "y" {
 				return nil
 			}
@@ -473,17 +473,18 @@ func (m *Model) renameItem() {
 			return nil
 		})
 	case navigator.Scene:
-		m.askText("Rename scene:", it.Scene, func(m *Model, name string) tea.Cmd {
+		m.askText("Rename scene:", meta.SceneName(it.Chapter, it.Scene), func(m *Model, name string) tea.Cmd {
 			if m.flush() != nil {
 				return nil
 			}
-			if err := m.proj.RenameScene(it.Chapter, it.Scene, name); err != nil {
+			ref, err := m.proj.RenameScene(it.Chapter, it.Scene, name)
+			if err != nil {
 				return m.fail(err)
 			}
 			if m.cur.Chapter == it.Chapter && m.cur.Scene == it.Scene {
-				m.cur.Scene = name
+				m.cur = ref
 			}
-			m.nav.Select(navigator.Item{Kind: navigator.Scene, Chapter: it.Chapter, Scene: name})
+			m.nav.Select(navigator.Item{Kind: navigator.Scene, Chapter: ref.Chapter, Scene: ref.Scene})
 			return nil
 		})
 	}
@@ -515,7 +516,7 @@ func (m *Model) moveItem(d int) {
 		m.msg = "Cannot move further"
 		return
 	}
-	ref := project.SceneRef{Chapter: meta.Chapters[nci].Name, Scene: it.Scene}
+	ref := project.SceneRef{Chapter: meta.Chapters[nci].Name, Scene: meta.Chapters[nci].Scenes[nsi].File}
 	if m.cur.Chapter == it.Chapter && m.cur.Scene == it.Scene {
 		m.cur = ref
 	}

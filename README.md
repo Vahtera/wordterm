@@ -13,6 +13,9 @@ Distraction-free terminal writing app for chapter-based projects (Go, Bubble Tea
 
 Cross-compile: `GOOS=windows GOARCH=arm64 go build -o wordterm.exe .` (same pattern for linux/darwin, amd64/arm64).
 
+Scene entries in the JSON are plain names, or `{"name": "Intro", "file": "Intro_2"}` when a move had
+to avoid a file-name clash in the target chapter (the scene keeps its name, only the file is suffixed).
+
 ## Working-copy rule
 
 The project is copied to a temp working copy (`<os temp>/wordterm/session-*/project`). All app

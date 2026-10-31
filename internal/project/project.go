@@ -14,14 +14,55 @@ import (
 
 const FormatVersion = 1
 
+// SceneRef identifies a scene: its chapter name and the scene's File key.
 type SceneRef struct {
 	Chapter string `json:"chapter"`
 	Scene   string `json:"scene"`
 }
 
+// Scene is one scene. Name is what the user sees; File is the .txt file stem
+// inside the chapter folder (the scene's unique key within its chapter). They
+// differ only when a move had to avoid a name clash, e.g. Name "Intro",
+// File "Intro_2". In JSON a plain string means Name == File; otherwise an object.
+type Scene struct {
+	Name string
+	File string
+}
+
+type sceneJSON struct {
+	Name string `json:"name"`
+	File string `json:"file"`
+}
+
+func (s Scene) MarshalJSON() ([]byte, error) {
+	if s.File == "" || s.File == s.Name {
+		return json.Marshal(s.Name)
+	}
+	return json.Marshal(sceneJSON{s.Name, s.File})
+}
+
+func (s *Scene) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] == '"' {
+		if err := json.Unmarshal(b, &s.Name); err != nil {
+			return err
+		}
+		s.File = s.Name
+		return nil
+	}
+	var o sceneJSON
+	if err := json.Unmarshal(b, &o); err != nil {
+		return err
+	}
+	s.Name, s.File = o.Name, o.File
+	if s.File == "" {
+		s.File = o.Name
+	}
+	return nil
+}
+
 type Chapter struct {
-	Name   string   `json:"name"`
-	Scenes []string `json:"scenes"`
+	Name   string  `json:"name"`
+	Scenes []Scene `json:"scenes"`
 }
 
 type Meta struct {
@@ -52,15 +93,18 @@ func (m *Meta) Validate() error {
 		} else {
 			chapters[k] = true
 		}
-		scenes := map[string]bool{}
+		files := map[string]bool{}
 		for _, s := range c.Scenes {
-			if err := ValidateName(s); err != nil {
+			if err := ValidateName(s.Name); err != nil {
 				return fmt.Errorf("scene in %q: %w", c.Name, err)
 			}
-			if k := strings.ToLower(s); scenes[k] {
-				return fmt.Errorf("duplicate scene %q in chapter %q", s, c.Name)
+			if err := ValidateName(s.File); err != nil {
+				return fmt.Errorf("scene file in %q: %w", c.Name, err)
+			}
+			if k := strings.ToLower(s.File); files[k] {
+				return fmt.Errorf("duplicate scene file %q in chapter %q", s.File, c.Name)
 			} else {
-				scenes[k] = true
+				files[k] = true
 			}
 		}
 	}
@@ -71,7 +115,7 @@ func (m *Meta) HasScene(r SceneRef) bool {
 	for _, c := range m.Chapters {
 		if c.Name == r.Chapter {
 			for _, s := range c.Scenes {
-				if s == r.Scene {
+				if s.File == r.Scene {
 					return true
 				}
 			}
@@ -88,7 +132,7 @@ func (m *Meta) Resolve() (ref SceneRef, ok bool) {
 	}
 	for _, c := range m.Chapters {
 		if len(c.Scenes) > 0 {
-			return SceneRef{c.Name, c.Scenes[0]}, true
+			return SceneRef{c.Name, c.Scenes[0].File}, true
 		}
 	}
 	return SceneRef{}, false
@@ -150,8 +194,8 @@ func Load(root string) (*Project, error) {
 			continue
 		}
 		for _, s := range c.Scenes {
-			if _, err := os.Stat(SceneFile(root, SceneRef{c.Name, s})); err != nil {
-				missing = append(missing, fmt.Errorf("scene file missing: %s/%s.txt", c.Name, s))
+			if _, err := os.Stat(SceneFile(root, SceneRef{c.Name, s.File})); err != nil {
+				missing = append(missing, fmt.Errorf("scene file missing: %s/%s.txt", c.Name, s.File))
 			}
 		}
 	}
@@ -190,14 +234,14 @@ func (p *Project) Counts(cur SceneRef) (scene, chapter, total int, err error) {
 	for _, c := range p.Meta.Chapters {
 		cw := 0
 		for _, s := range c.Scenes {
-			txt, err := p.ReadScene(SceneRef{c.Name, s})
+			txt, err := p.ReadScene(SceneRef{c.Name, s.File})
 			if err != nil {
 				return 0, 0, 0, err
 			}
 			n := CountWords(txt)
 			cw += n
 			total += n
-			if c.Name == cur.Chapter && s == cur.Scene {
+			if c.Name == cur.Chapter && s.File == cur.Scene {
 				scene = n
 			}
 		}
@@ -228,7 +272,7 @@ func Create(parent, name, author, authorInfo string) (string, error) {
 	first := SceneRef{"Chapter1", "Scene1"}
 	p := &Project{Root: dir, MetaPath: filepath.Join(dir, name+".json"), Meta: Meta{
 		Version: FormatVersion, Name: name, Author: author, AuthorInfo: authorInfo,
-		LastOpened: &first, Chapters: []Chapter{{Name: first.Chapter, Scenes: []string{first.Scene}}},
+		LastOpened: &first, Chapters: []Chapter{{Name: first.Chapter, Scenes: []Scene{{Name: first.Scene, File: first.Scene}}}},
 	}}
 	if err := os.Mkdir(filepath.Join(dir, first.Chapter), 0o755); err != nil {
 		return fail(err)

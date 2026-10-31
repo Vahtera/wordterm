@@ -22,11 +22,20 @@ func (m *Meta) ChapterIndex(name string) int {
 	return -1
 }
 
-func (m *Meta) SceneIndex(chapter, scene string) int {
+// SceneIndex finds a scene by its File key.
+func (m *Meta) SceneIndex(chapter, file string) int {
 	if ci := m.ChapterIndex(chapter); ci >= 0 {
-		return slices.Index(m.Chapters[ci].Scenes, scene)
+		return slices.IndexFunc(m.Chapters[ci].Scenes, func(s Scene) bool { return s.File == file })
 	}
 	return -1
+}
+
+// SceneName returns the display name of the scene with the given File key.
+func (m *Meta) SceneName(chapter, file string) string {
+	if si := m.SceneIndex(chapter, file); si >= 0 {
+		return m.Chapters[m.ChapterIndex(chapter)].Scenes[si].Name
+	}
+	return file
 }
 
 func (p *Project) snapshot() func() {
@@ -62,16 +71,43 @@ func (p *Project) chapterNameFree(name string, except int) error {
 	return nil
 }
 
+// sceneNameFree checks a new display name; display names stay unique per
+// chapter when adding or renaming (only moves may create look-alikes).
 func (p *Project) sceneNameFree(ci int, name string, except int) error {
 	if err := ValidateName(name); err != nil {
 		return err
 	}
 	for i, s := range p.Meta.Chapters[ci].Scenes {
-		if i != except && strings.EqualFold(s, name) {
-			return fmt.Errorf("scene %q already exists in %q", s, p.Meta.Chapters[ci].Name)
+		if i != except && strings.EqualFold(s.Name, name) {
+			return fmt.Errorf("scene %q already exists in %q", s.Name, p.Meta.Chapters[ci].Name)
 		}
 	}
 	return nil
+}
+
+// freeFile returns a file stem for base that is unused in chapter ci, adding
+// _2, _3, ... on a clash. self is the index of the scene being renamed (or -1).
+func (p *Project) freeFile(ci int, base string, self int) string {
+	c := p.Meta.Chapters[ci]
+	for n := 1; ; n++ {
+		cand := base
+		if n > 1 {
+			cand = fmt.Sprintf("%s_%d", base, n)
+		}
+		taken := false
+		for i, s := range c.Scenes {
+			if i != self && strings.EqualFold(s.File, cand) {
+				taken = true
+			}
+		}
+		if !taken && exists(SceneFile(p.Root, SceneRef{c.Name, cand})) &&
+			!(self >= 0 && strings.EqualFold(c.Scenes[self].File, cand)) {
+			taken = true
+		}
+		if !taken {
+			return cand
+		}
+	}
 }
 
 func (p *Project) RenameProject(name string) error {
@@ -106,33 +142,31 @@ func (p *Project) AddChapter(name string) error {
 }
 
 // AddScene creates an empty scene at index at (or at the end if at is out of range).
-func (p *Project) AddScene(chapter string, at int, name string) error {
+func (p *Project) AddScene(chapter string, at int, name string) (SceneRef, error) {
 	ci := p.Meta.ChapterIndex(chapter)
 	if ci < 0 {
-		return fmt.Errorf("no chapter %q", chapter)
+		return SceneRef{}, fmt.Errorf("no chapter %q", chapter)
 	}
 	if err := p.sceneNameFree(ci, name, -1); err != nil {
-		return err
+		return SceneRef{}, err
 	}
-	path := SceneFile(p.Root, SceneRef{chapter, name})
-	if exists(path) {
-		return fmt.Errorf("%s already exists", path)
-	}
+	ref := SceneRef{chapter, p.freeFile(ci, name, -1)}
+	path := SceneFile(p.Root, ref)
 	if err := storage.WriteFileAtomic(path, nil, 0o644); err != nil {
-		return err
+		return SceneRef{}, err
 	}
 	restore := p.snapshot()
 	sc := p.Meta.Chapters[ci].Scenes
 	if at < 0 || at > len(sc) {
 		at = len(sc)
 	}
-	p.Meta.Chapters[ci].Scenes = slices.Insert(sc, at, name)
+	p.Meta.Chapters[ci].Scenes = slices.Insert(sc, at, Scene{Name: name, File: ref.Scene})
 	if err := p.WriteMeta(); err != nil {
 		restore()
 		os.Remove(path)
-		return err
+		return SceneRef{}, err
 	}
-	return nil
+	return ref, nil
 }
 
 func (p *Project) RenameChapter(old, name string) error {
@@ -166,36 +200,40 @@ func (p *Project) RenameChapter(old, name string) error {
 	return nil
 }
 
-func (p *Project) RenameScene(chapter, old, name string) error {
-	ci := p.Meta.ChapterIndex(chapter)
-	si := p.Meta.SceneIndex(chapter, old)
+// RenameScene renames the scene with File key file; its file is renamed to
+// match (with a _2, _3... suffix if that stem is taken).
+func (p *Project) RenameScene(chapter, file, name string) (SceneRef, error) {
+	ci, si := p.Meta.ChapterIndex(chapter), p.Meta.SceneIndex(chapter, file)
 	if si < 0 {
-		return fmt.Errorf("no scene %q in %q", old, chapter)
+		return SceneRef{}, fmt.Errorf("no scene %q in %q", file, chapter)
 	}
-	if old == name {
-		return nil
+	old := SceneRef{chapter, file}
+	sc := p.Meta.Chapters[ci].Scenes[si]
+	if sc.Name == name {
+		return old, nil
 	}
 	if err := p.sceneNameFree(ci, name, si); err != nil {
-		return err
+		return old, err
 	}
-	from, to := SceneFile(p.Root, SceneRef{chapter, old}), SceneFile(p.Root, SceneRef{chapter, name})
-	if !strings.EqualFold(old, name) && exists(to) {
-		return fmt.Errorf("%s already exists", to)
-	}
-	if err := os.Rename(from, to); err != nil {
-		return err
+	nw := SceneRef{chapter, p.freeFile(ci, name, si)}
+	if nw != old {
+		if err := os.Rename(SceneFile(p.Root, old), SceneFile(p.Root, nw)); err != nil {
+			return old, err
+		}
 	}
 	restore := p.snapshot()
-	p.Meta.Chapters[ci].Scenes[si] = name
-	if l := p.Meta.LastOpened; l != nil && l.Chapter == chapter && l.Scene == old {
-		l.Scene = name
+	p.Meta.Chapters[ci].Scenes[si] = Scene{Name: name, File: nw.Scene}
+	if l := p.Meta.LastOpened; l != nil && *l == old {
+		*l = nw
 	}
 	if err := p.WriteMeta(); err != nil {
 		restore()
-		os.Rename(to, from)
-		return err
+		if nw != old {
+			os.Rename(SceneFile(p.Root, nw), SceneFile(p.Root, old))
+		}
+		return old, err
 	}
-	return nil
+	return nw, nil
 }
 
 func (p *Project) DeleteScene(chapter, name string) error {
@@ -281,33 +319,30 @@ func (p *Project) MoveScene(ci, si, d int) (int, int, error) {
 	if ti < 0 || ti >= len(p.Meta.Chapters) {
 		return ci, si, nil
 	}
-	target, name := &p.Meta.Chapters[ti], c.Scenes[si]
-	if err := p.sceneNameFree(ti, name, -1); err != nil {
-		return ci, si, err
-	}
-	oldRef, newRef := SceneRef{c.Name, name}, SceneRef{target.Name, name}
-	from, to := SceneFile(p.Root, oldRef), SceneFile(p.Root, newRef)
-	if exists(to) {
-		return ci, si, fmt.Errorf("%s already exists", to)
-	}
-	if err := os.Rename(from, to); err != nil {
+	target, sc := &p.Meta.Chapters[ti], c.Scenes[si]
+	// A clash in the target chapter is allowed: the file gets a suffix
+	// (Intro_2.txt) while the scene keeps its name in the metadata.
+	newFile := p.freeFile(ti, sc.Name, -1)
+	oldRef, newRef := SceneRef{c.Name, sc.File}, SceneRef{target.Name, newFile}
+	if err := os.Rename(SceneFile(p.Root, oldRef), SceneFile(p.Root, newRef)); err != nil {
 		return ci, si, err
 	}
 	restore := p.snapshot()
 	c.Scenes = slices.Delete(c.Scenes, si, si+1)
+	moved := Scene{Name: sc.Name, File: newFile}
 	nsi := 0
 	if d < 0 {
-		target.Scenes = append(target.Scenes, name)
+		target.Scenes = append(target.Scenes, moved)
 		nsi = len(target.Scenes) - 1
 	} else {
-		target.Scenes = slices.Insert(target.Scenes, 0, name)
+		target.Scenes = slices.Insert(target.Scenes, 0, moved)
 	}
 	if l := p.Meta.LastOpened; l != nil && *l == oldRef {
 		*l = newRef
 	}
 	if err := p.WriteMeta(); err != nil {
 		restore()
-		os.Rename(to, from)
+		os.Rename(SceneFile(p.Root, newRef), SceneFile(p.Root, oldRef))
 		return ci, si, err
 	}
 	return ti, nsi, nil
