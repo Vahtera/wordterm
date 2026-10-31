@@ -58,6 +58,7 @@ type Model struct {
 
 	welcome bool // built-in read-only help project (no project was given)
 
+	browse       *browseState // File > Open Project... folder browser
 	screenwriter bool
 	prevFocus    Focus
 	autoPaused   bool // autosave stopped because the original changed outside Wordterm
@@ -282,7 +283,7 @@ func (m *Model) askText(label, initial string, done func(*Model, string) tea.Cmd
 
 // requestQuit quits at once when nothing is unsaved, otherwise asks.
 func (m *Model) requestQuit() tea.Cmd {
-	m.prompt, m.menu, m.overlay, m.adjust, m.rebind = nil, nil, ovNone, adjNone, nil
+	m.prompt, m.menu, m.overlay, m.adjust, m.rebind, m.browse = nil, nil, ovNone, adjNone, nil, nil
 	if m.flush() != nil && !m.quitArmed {
 		m.quitArmed = true
 		m.msg = "Cannot write working copy; quit again to exit anyway"
@@ -373,6 +374,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case m.rebind != nil:
 			m.rebindKey(k)
+		case m.browse != nil:
+			return m, m.browseKey(k)
 		case m.overlay != ovNone:
 			if k == "esc" || k == "q" {
 				m.overlay = ovNone
@@ -681,6 +684,8 @@ func (m Model) applyOverlays(s string) string {
 		return ui.Overlay(s, box, x, y)
 	}
 	switch {
+	case m.browse != nil:
+		return center(m.browseBox())
 	case m.rebind != nil:
 		return center(m.rebindBox())
 	case m.overlay == ovHelp:

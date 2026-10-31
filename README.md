@@ -55,4 +55,7 @@ After a crash the copy is kept; on next launch you are asked to recover or disca
   messages appear on the bottom row only when needed. Safety: if the original project was changed outside
   Wordterm (or the session was recovered after a crash), Save asks before overwriting, and autosave pauses
   instead of overwriting.
+- File > Open Project...: a folder browser that starts in the Default Save Path (or your home folder). Up/Down
+  move, Enter opens a folder that contains a project `.json` (marked `[project]`) or goes into any other
+  folder, Left goes up, Esc cancels.
 - Phase 7 (cross-platform testing, builds, documentation): not started.

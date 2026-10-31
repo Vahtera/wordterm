@@ -169,6 +169,12 @@ func findMeta(root string) (string, error) {
 	return "", fmt.Errorf("several .json files found (%s); expected exactly one", strings.Join(found, ", "))
 }
 
+// IsProjectDir reports whether dir contains exactly one project .json file.
+func IsProjectDir(dir string) bool {
+	_, err := findMeta(dir)
+	return err == nil
+}
+
 // Load reads and validates the project in root and checks that every
 // chapter folder and scene file exists. Nothing is modified.
 func Load(root string) (*Project, error) {

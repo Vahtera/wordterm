@@ -56,6 +56,7 @@ func (m Model) menus() []menuTab {
 	return []menuTab{
 		{"File", []menuItem{
 			{label: "New Project...", run: (*Model).newProject},
+			{label: "Open Project...", run: (*Model).openProject},
 			{label: "Save", run: do(func(m *Model) { m.askSave() })},
 			{label: "Save As...", run: (*Model).saveAs},
 			{sep: true},
