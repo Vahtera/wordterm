@@ -29,4 +29,9 @@ After a crash the copy is kept; on next launch you are asked to recover or disca
   (Phase 4). Keys: arrows, Home/End, PgUp/PgDn, Backspace/Delete, Ctrl+Z undo, Ctrl+Y redo,
   F3 pane, F9 reload, F10 save, Ctrl+Q quit. Quitting with unsaved edits keeps the working copy
   and offers recovery on next start (quit prompt arrives in Phase 5).
-- Phases 4-7: not started.
+- Phase 4 (navigator): Up/Down/Left/Right navigate the tree (Navigator focused), Enter opens a scene or
+  toggles a chapter, `+` add, `-` delete (chapter must be empty), F2 rename, F5/F6 move (scenes cross
+  chapter edges and the file moves too). Selection is drawn in inverted colours. Questions and name
+  prompts appear in the status bar until the dialog system arrives in Phase 5. F9/F10 and quit now ask
+  for confirmation. Undo history is per open scene (reset when you switch scenes).
+- Phases 5-7: not started.

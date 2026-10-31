@@ -51,10 +51,14 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("working copy %s: %w", sess.Dir, err) // working copy is kept
 	}
-	_, runErr := tea.NewProgram(app.New(sess, proj)).Run()
+	final, runErr := tea.NewProgram(app.New(sess, proj)).Run()
 
-	// Normal exit: delete the working copy only if nothing would be lost.
-	if has, err := sess.HasChanges(); err == nil && !has {
+	// Normal exit: delete the working copy if the user discarded it or nothing would be lost.
+	discarded := false
+	if fm, ok := final.(app.Model); ok {
+		discarded = fm.Discarded()
+	}
+	if has, err := sess.HasChanges(); discarded || (err == nil && !has) {
 		sess.Close()
 	} else {
 		fmt.Fprintln(os.Stderr, "Unsaved working copy kept at:", sess.Dir)

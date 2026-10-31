@@ -3,11 +3,13 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"wordterm/internal/editor"
+	"wordterm/internal/navigator"
 	"wordterm/internal/project"
 	"wordterm/internal/storage"
 	"wordterm/internal/ui"
@@ -40,10 +42,27 @@ type Model struct {
 	ws, wc, wp int
 	msg        string
 	quitArmed  bool
+	discard    bool // user chose to discard unsaved changes on quit
+
+	nav    *navigator.Navigator
+	prompt *prompt
 }
 
+// prompt is a one-line question shown in the status bar: either free text
+// (text=true, done gets the entered text) or a single key from keys.
+type prompt struct {
+	label string
+	text  bool
+	keys  string
+	input []rune
+	done  func(m *Model, answer string) tea.Cmd
+}
+
+// Discarded reports whether the user chose to discard unsaved changes when quitting.
+func (m Model) Discarded() bool { return m.discard }
+
 func New(sess *storage.Session, proj *project.Project) Model {
-	m := Model{sess: sess, proj: proj, ed: editor.New("")}
+	m := Model{sess: sess, proj: proj, ed: editor.New(""), nav: navigator.New()}
 	m.openLast()
 	return m
 }
@@ -64,6 +83,9 @@ func (m *Model) openLast() {
 // openScene records the scene as last opened (in memory only; it reaches
 // disk on Save, so merely browsing never makes the project "changed").
 func (m *Model) openScene(ref project.SceneRef) {
+	if m.flush() != nil { // never drop edits of the scene we are leaving
+		return
+	}
 	txt, err := m.proj.ReadScene(ref)
 	if err != nil {
 		m.msg = "Error: " + err.Error()
@@ -72,6 +94,8 @@ func (m *Model) openScene(ref project.SceneRef) {
 	m.cur, m.ed = ref, editor.New(txt)
 	r := ref
 	m.proj.Meta.LastOpened = &r
+	m.nav.Expand(ref.Chapter)
+	m.nav.Select(navigator.Item{Kind: navigator.Scene, Chapter: ref.Chapter, Scene: ref.Scene})
 	m.syncSize()
 	m.refreshCounts()
 }
@@ -120,14 +144,23 @@ func (m *Model) save() {
 	m.msg = "Saved"
 }
 
-func (m *Model) reload() {
+func (m *Model) requestReload() {
 	if m.flush() != nil {
 		return
 	}
 	if has, err := m.sess.HasChanges(); err != nil || has {
-		m.msg = "Reload refused: unsaved changes (confirmation dialog arrives in Phase 5)"
+		m.ask("Discard unsaved changes and reload? (y/n)", "yn", func(m *Model, a string) tea.Cmd {
+			if a == "y" {
+				m.reloadNow()
+			}
+			return nil
+		})
 		return
 	}
+	m.reloadNow()
+}
+
+func (m *Model) reloadNow() {
 	if err := m.sess.Reload(); err != nil {
 		m.msg = "Reload failed: " + err.Error()
 		return
@@ -142,8 +175,77 @@ func (m *Model) reload() {
 	if last != nil {
 		m.proj.Meta.LastOpened = last
 	}
+	m.cur = project.SceneRef{}
+	m.ed = editor.New("") // discard in-memory edits
 	m.openLast()
 	m.msg = "Reloaded"
+}
+
+func (m *Model) ask(label, keys string, done func(*Model, string) tea.Cmd) {
+	m.prompt = &prompt{label: label, keys: keys, done: done}
+}
+
+func (m *Model) askText(label, initial string, done func(*Model, string) tea.Cmd) {
+	m.prompt = &prompt{label: label, text: true, input: []rune(initial), done: done}
+}
+
+// requestQuit quits at once when nothing is unsaved, otherwise asks.
+func (m *Model) requestQuit() tea.Cmd {
+	m.prompt = nil
+	if m.flush() != nil && !m.quitArmed {
+		m.quitArmed = true
+		m.msg = "Cannot write working copy; quit again to exit anyway"
+		return nil
+	}
+	if has, err := m.sess.HasChanges(); err != nil || !has {
+		return tea.Quit
+	}
+	m.ask("Unsaved changes: [S]ave, [D]iscard, [C]ancel", "sdc", func(m *Model, a string) tea.Cmd {
+		switch a {
+		case "s":
+			if m.save(); m.msg == "Saved" {
+				return tea.Quit
+			}
+		case "d":
+			m.discard = true
+			return tea.Quit
+		}
+		return nil
+	})
+	return nil
+}
+
+func (m *Model) promptKey(msg tea.KeyPressMsg) tea.Cmd {
+	p, k := m.prompt, msg.String()
+	if k == "esc" {
+		m.prompt = nil
+		return nil
+	}
+	if !p.text {
+		if a := strings.ToLower(k); len(a) == 1 && strings.Contains(p.keys, a) {
+			m.prompt = nil
+			return p.done(m, a)
+		}
+		return nil
+	}
+	switch k {
+	case "enter":
+		text := strings.TrimSpace(string(p.input))
+		m.prompt = nil
+		if text == "" {
+			return nil
+		}
+		return p.done(m, text)
+	case "backspace":
+		if len(p.input) > 0 {
+			p.input = p.input[:len(p.input)-1]
+		}
+	default:
+		if t := msg.Key().Text; t != "" && (k == t || t == " ") {
+			p.input = append(p.input, []rune(t)...)
+		}
+	}
+	return nil
 }
 
 func (m Model) Init() tea.Cmd { return tick() }
@@ -168,28 +270,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit // any key quits from the too-small screen
 		}
 		m.msg = ""
-		switch msg.String() {
-		case "ctrl+c", "ctrl+q":
-			if m.flush() != nil && !m.quitArmed {
-				m.quitArmed = true
-				m.msg = "Cannot write working copy; quit again to exit anyway"
-				return m, nil
-			}
-			return m, tea.Quit
-		case "f3": // default pane switch; becomes rebindable in Phase 5
+		k := msg.String()
+		switch {
+		case k == "ctrl+c" || k == "ctrl+q":
+			return m, m.requestQuit()
+		case m.prompt != nil:
+			return m, m.promptKey(msg)
+		case k == "f3": // default pane switch; becomes rebindable in Phase 5
 			if m.focus == FocusNavigator {
 				m.focus = FocusEditor
 			} else {
 				m.focus = FocusNavigator
 			}
-		case "f10":
-			m.save()
-		case "f9":
-			m.reload()
-		default:
-			if m.focus == FocusEditor && m.hasScene() {
-				m.editorKey(msg)
-			}
+		case k == "f10":
+			m.ask("Save project? (y/n)", "yn", func(m *Model, a string) tea.Cmd {
+				if a == "y" {
+					m.save()
+				}
+				return nil
+			})
+		case k == "f9":
+			m.requestReload()
+		case m.focus == FocusNavigator:
+			m.navKey(msg)
+		case m.hasScene():
+			m.editorKey(msg)
 		}
 	}
 	return m, nil
@@ -232,27 +337,191 @@ func (m *Model) editorKey(msg tea.KeyPressMsg) {
 	}
 }
 
-func (m Model) treeLines() []string {
-	meta := m.proj.Meta
-	lines := []string{meta.Name}
-	for ci, c := range meta.Chapters {
-		branch, pad := "├─ ", "│  "
-		if ci == len(meta.Chapters)-1 {
-			branch, pad = "└─ ", "   "
-		}
-		lines = append(lines, branch+c.Name)
-		for si, s := range c.Scenes {
-			sb, mark := "├─ ", ""
-			if si == len(c.Scenes)-1 {
-				sb = "└─ "
+func (m *Model) navKey(msg tea.KeyPressMsg) {
+	k, t, meta := msg.String(), msg.Key().Text, &m.proj.Meta
+	switch {
+	case k == "up":
+		m.nav.Up(meta)
+	case k == "down":
+		m.nav.Down(meta)
+	case k == "left":
+		m.nav.Left(meta)
+	case k == "right":
+		m.nav.Right(meta)
+	case k == "enter":
+		it := m.nav.Selected(meta)
+		switch it.Kind {
+		case navigator.Scene:
+			if ref := (project.SceneRef{Chapter: it.Chapter, Scene: it.Scene}); ref != m.cur {
+				m.openScene(ref)
 			}
-			if m.cur == (project.SceneRef{Chapter: c.Name, Scene: s}) {
-				mark = " ◂"
-			}
-			lines = append(lines, pad+sb+s+mark)
+		case navigator.Chapter:
+			m.nav.Toggle(it.Chapter)
 		}
+	case k == "+" || t == "+" || k == "shift+=":
+		m.addItem()
+	case k == "-" || t == "-":
+		m.deleteItem()
+	case k == "f2":
+		m.renameItem()
+	case k == "f5":
+		m.moveItem(-1)
+	case k == "f6":
+		m.moveItem(1)
 	}
-	return lines
+}
+
+func (m *Model) fail(err error) tea.Cmd {
+	m.msg = "Error: " + err.Error()
+	return nil
+}
+
+func (m *Model) addItem() {
+	meta := &m.proj.Meta
+	it := m.nav.Selected(meta)
+	if it.Kind == navigator.Root {
+		m.askText("New chapter name:", "", func(m *Model, name string) tea.Cmd {
+			if err := m.proj.AddChapter(name); err != nil {
+				return m.fail(err)
+			}
+			m.nav.Select(navigator.Item{Kind: navigator.Chapter, Chapter: name})
+			return nil
+		})
+		return
+	}
+	ch, at := it.Chapter, -1
+	if it.Kind == navigator.Scene {
+		at = meta.SceneIndex(ch, it.Scene) + 1
+	}
+	m.askText("New scene name:", "", func(m *Model, name string) tea.Cmd {
+		if err := m.proj.AddScene(ch, at, name); err != nil {
+			return m.fail(err)
+		}
+		ref := project.SceneRef{Chapter: ch, Scene: name}
+		m.nav.Expand(ch)
+		m.nav.Select(navigator.Item{Kind: navigator.Scene, Chapter: ch, Scene: name})
+		if !m.hasScene() {
+			m.openScene(ref)
+		}
+		m.refreshCounts()
+		return nil
+	})
+}
+
+func (m *Model) deleteItem() {
+	meta := &m.proj.Meta
+	it := m.nav.Selected(meta)
+	switch it.Kind {
+	case navigator.Root:
+		m.msg = "The project cannot be deleted"
+	case navigator.Chapter:
+		if n := len(meta.Chapters[meta.ChapterIndex(it.Chapter)].Scenes); n > 0 {
+			m.msg = "Chapter is not empty: delete its scenes first"
+			return
+		}
+		m.ask(fmt.Sprintf("Delete chapter '%s'? (y/n)", it.Chapter), "yn", func(m *Model, a string) tea.Cmd {
+			if a == "y" {
+				if err := m.proj.DeleteChapter(it.Chapter); err != nil {
+					return m.fail(err)
+				}
+			}
+			return nil
+		})
+	case navigator.Scene:
+		ref := project.SceneRef{Chapter: it.Chapter, Scene: it.Scene}
+		m.ask(fmt.Sprintf("Delete scene '%s'? (y/n)", it.Scene), "yn", func(m *Model, a string) tea.Cmd {
+			if a != "y" {
+				return nil
+			}
+			if err := m.proj.DeleteScene(ref.Chapter, ref.Scene); err != nil {
+				return m.fail(err)
+			}
+			if m.cur == ref {
+				m.cur = project.SceneRef{}
+				m.ed = editor.New("")
+				m.openLast()
+			}
+			m.refreshCounts()
+			return nil
+		})
+	}
+}
+
+func (m *Model) renameItem() {
+	meta := &m.proj.Meta
+	it := m.nav.Selected(meta)
+	switch it.Kind {
+	case navigator.Root:
+		m.askText("Project name:", meta.Name, func(m *Model, name string) tea.Cmd {
+			if err := m.proj.RenameProject(name); err != nil {
+				return m.fail(err)
+			}
+			return nil
+		})
+	case navigator.Chapter:
+		m.askText("Rename chapter:", it.Chapter, func(m *Model, name string) tea.Cmd {
+			if m.flush() != nil {
+				return nil
+			}
+			if err := m.proj.RenameChapter(it.Chapter, name); err != nil {
+				return m.fail(err)
+			}
+			m.nav.Rename(it.Chapter, name)
+			if m.cur.Chapter == it.Chapter {
+				m.cur.Chapter = name
+			}
+			return nil
+		})
+	case navigator.Scene:
+		m.askText("Rename scene:", it.Scene, func(m *Model, name string) tea.Cmd {
+			if m.flush() != nil {
+				return nil
+			}
+			if err := m.proj.RenameScene(it.Chapter, it.Scene, name); err != nil {
+				return m.fail(err)
+			}
+			if m.cur.Chapter == it.Chapter && m.cur.Scene == it.Scene {
+				m.cur.Scene = name
+			}
+			m.nav.Select(navigator.Item{Kind: navigator.Scene, Chapter: it.Chapter, Scene: name})
+			return nil
+		})
+	}
+}
+
+// moveItem implements F5 (d=-1) and F6 (d=+1).
+func (m *Model) moveItem(d int) {
+	meta := &m.proj.Meta
+	it := m.nav.Selected(meta)
+	if it.Kind == navigator.Root || m.flush() != nil {
+		return
+	}
+	ci := meta.ChapterIndex(it.Chapter)
+	if it.Kind == navigator.Chapter {
+		if ni, err := m.proj.MoveChapter(ci, d); err != nil {
+			m.fail(err)
+		} else if ni == ci {
+			m.msg = "Cannot move further"
+		}
+		return
+	}
+	si := meta.SceneIndex(it.Chapter, it.Scene)
+	nci, nsi, err := m.proj.MoveScene(ci, si, d)
+	if err != nil {
+		m.fail(err)
+		return
+	}
+	if nci == ci && nsi == si {
+		m.msg = "Cannot move further"
+		return
+	}
+	ref := project.SceneRef{Chapter: meta.Chapters[nci].Name, Scene: it.Scene}
+	if m.cur.Chapter == it.Chapter && m.cur.Scene == it.Scene {
+		m.cur = ref
+	}
+	m.nav.Expand(ref.Chapter)
+	m.nav.Select(navigator.Item{Kind: navigator.Scene, Chapter: ref.Chapter, Scene: ref.Scene})
+	m.refreshCounts()
 }
 
 func (m Model) View() tea.View {
@@ -271,11 +540,17 @@ func (m Model) View() tea.View {
 			}
 			live = m.ed.WordCount()
 		}
-		nav := ui.PaneContent{Header: "Navigator", Lines: m.treeLines(), Focused: m.focus == FocusNavigator}
+		nav := ui.PaneContent{Header: "Navigator", Focused: m.focus == FocusNavigator,
+			Lines: m.nav.Lines(&m.proj.Meta, m.cur, l.NavW, l.PaneH-1)}
 		edit := ui.PaneContent{Header: "Editor", Lines: rows, Focused: m.focus == FocusEditor}
 		status := fmt.Sprintf("Words: Scene: %d | Chapter: %d | Project: %d",
 			live, m.wc-m.ws+live, m.wp-m.ws+live)
-		if m.msg != "" {
+		switch {
+		case m.prompt != nil && m.prompt.text:
+			status = m.prompt.label + " " + string(m.prompt.input) + "█  (Enter accept, Esc cancel)"
+		case m.prompt != nil:
+			status = m.prompt.label
+		case m.msg != "":
 			status += " | " + m.msg
 		}
 		s = ui.Frame(l, "Wordterm", nav, edit, status)
