@@ -7,10 +7,12 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"wordterm/internal/editor"
 	"wordterm/internal/navigator"
 	"wordterm/internal/project"
+	"wordterm/internal/settings"
 	"wordterm/internal/storage"
 	"wordterm/internal/ui"
 )
@@ -31,7 +33,6 @@ func tick() tea.Cmd {
 // Model reads and writes project data only in the working copy (sess.Root).
 type Model struct {
 	width, height int
-	editorWidth   int // 0 = default; becomes a setting in Phase 5
 	focus         Focus
 
 	sess *storage.Session
@@ -46,14 +47,38 @@ type Model struct {
 
 	nav    *navigator.Navigator
 	prompt *prompt
+
+	cfg      settings.Settings
+	lastAuto time.Time
+	menu     *menuState
+	overlay  overlayKind
+	adjust   adjustKind
+	rebind   *rebindState
 }
+
+type overlayKind int
+
+const (
+	ovNone overlayKind = iota
+	ovHelp
+	ovAbout
+)
+
+type adjustKind int
+
+const (
+	adjNone adjustKind = iota
+	adjEditor
+	adjWrite
+)
 
 // prompt is a one-line question shown in the status bar: either free text
 // (text=true, done gets the entered text) or a single key from keys.
 type prompt struct {
-	label string
-	text  bool
-	keys  string
+	label    string
+	text     bool
+	optional bool // text prompt that accepts an empty answer
+	keys     string
 	input []rune
 	done  func(m *Model, answer string) tea.Cmd
 }
@@ -61,8 +86,11 @@ type prompt struct {
 // Discarded reports whether the user chose to discard unsaved changes when quitting.
 func (m Model) Discarded() bool { return m.discard }
 
-func New(sess *storage.Session, proj *project.Project) Model {
-	m := Model{sess: sess, proj: proj, ed: editor.New(""), nav: navigator.New()}
+// Session returns the current working-copy session (it changes on New Project).
+func (m Model) Session() *storage.Session { return m.sess }
+
+func New(sess *storage.Session, proj *project.Project, cfg settings.Settings, note string) Model {
+	m := Model{sess: sess, proj: proj, ed: editor.New(""), nav: navigator.New(), cfg: cfg, msg: note, lastAuto: time.Now()}
 	m.openLast()
 	return m
 }
@@ -102,7 +130,8 @@ func (m *Model) openScene(ref project.SceneRef) {
 
 func (m *Model) syncSize() {
 	if l := m.layout(); l.OK {
-		m.ed.SetSize(l.EditW-2, l.PaneH-1) // 1 column margin each side, 1 header row
+		m.ed.SetWrap(m.cfg.WordWrap)
+		m.ed.SetSize(m.writeW(l), l.PaneH-1) // 1 header row
 	}
 }
 
@@ -191,7 +220,7 @@ func (m *Model) askText(label, initial string, done func(*Model, string) tea.Cmd
 
 // requestQuit quits at once when nothing is unsaved, otherwise asks.
 func (m *Model) requestQuit() tea.Cmd {
-	m.prompt = nil
+	m.prompt, m.menu, m.overlay, m.adjust, m.rebind = nil, nil, ovNone, adjNone, nil
 	if m.flush() != nil && !m.quitArmed {
 		m.quitArmed = true
 		m.msg = "Cannot write working copy; quit again to exit anyway"
@@ -232,7 +261,7 @@ func (m *Model) promptKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "enter":
 		text := strings.TrimSpace(string(p.input))
 		m.prompt = nil
-		if text == "" {
+		if text == "" && !p.optional {
 			return nil
 		}
 		return p.done(m, text)
@@ -250,7 +279,7 @@ func (m *Model) promptKey(msg tea.KeyPressMsg) tea.Cmd {
 
 func (m Model) Init() tea.Cmd { return tick() }
 
-func (m Model) layout() ui.Layout { return ui.Compute(m.width, m.height, m.editorWidth) }
+func (m Model) layout() ui.Layout { return ui.Compute(m.width, m.height, m.cfg.EditorWidth) }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -259,6 +288,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncSize()
 	case flushMsg:
 		m.flush()
+		m.autosave()
 		return m, tick()
 	case tea.PasteMsg:
 		if m.focus == FocusEditor && m.hasScene() {
@@ -270,31 +300,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit // any key quits from the too-small screen
 		}
 		m.msg = ""
-		k := msg.String()
-		switch {
-		case k == "ctrl+c" || k == "ctrl+q":
+		k := keyName(msg)
+		if k == "ctrl+c" {
 			return m, m.requestQuit()
+		}
+		switch {
+		case m.rebind != nil:
+			m.rebindKey(k)
+		case m.overlay != ovNone:
+			if k == "esc" || k == "q" {
+				m.overlay = ovNone
+			}
+		case m.adjust != adjNone:
+			m.adjustKey(k)
+		case m.menu != nil:
+			return m, m.menuKey(k)
 		case m.prompt != nil:
 			return m, m.promptKey(msg)
-		case k == "f3": // default pane switch; becomes rebindable in Phase 5
-			if m.focus == FocusNavigator {
-				m.focus = FocusEditor
-			} else {
-				m.focus = FocusNavigator
-			}
-		case k == "f10":
-			m.ask("Save project? (y/n)", "yn", func(m *Model, a string) tea.Cmd {
-				if a == "y" {
-					m.save()
-				}
-				return nil
-			})
-		case k == "f9":
-			m.requestReload()
-		case m.focus == FocusNavigator:
-			m.navKey(msg)
-		case m.hasScene():
-			m.editorKey(msg)
+		case k == "esc": // fixed: always opens the main menu
+			m.menu = &menuState{}
+		default:
+			return m, m.dispatch(msg, k)
 		}
 	}
 	return m, nil
@@ -338,7 +364,7 @@ func (m *Model) editorKey(msg tea.KeyPressMsg) {
 }
 
 func (m *Model) navKey(msg tea.KeyPressMsg) {
-	k, t, meta := msg.String(), msg.Key().Text, &m.proj.Meta
+	k, meta := msg.String(), &m.proj.Meta
 	switch {
 	case k == "up":
 		m.nav.Up(meta)
@@ -358,16 +384,6 @@ func (m *Model) navKey(msg tea.KeyPressMsg) {
 		case navigator.Chapter:
 			m.nav.Toggle(it.Chapter)
 		}
-	case k == "+" || t == "+" || k == "shift+=":
-		m.addItem()
-	case k == "-" || t == "-":
-		m.deleteItem()
-	case k == "f2":
-		m.renameItem()
-	case k == "f5":
-		m.moveItem(-1)
-	case k == "f6":
-		m.moveItem(1)
 	}
 }
 
@@ -544,9 +560,11 @@ func (m Model) View() tea.View {
 		nav := ui.PaneContent{Header: "Navigator", Focused: m.focus == FocusNavigator,
 			Lines: m.nav.Lines(&m.proj.Meta, m.cur, l.NavW, l.PaneH-1)}
 		edit := ui.PaneContent{Header: "Editor", Lines: rows, Focused: m.focus == FocusEditor}
-		status := fmt.Sprintf("Words: Scene: %d | Chapter: %d | Project: %d",
-			live, m.wc-m.ws+live, m.wp-m.ws+live)
+		status := fmt.Sprintf("Words: Scene: %d | Chapter: %d | Project: %d | Autosave: %s",
+			live, m.wc-m.ws+live, m.wp-m.ws+live, onOff(m.cfg.Autosave))
 		switch {
+		case m.adjust != adjNone:
+			status = m.adjustHint(l)
 		case m.prompt != nil && m.prompt.text:
 			status = m.prompt.label + " " + string(m.prompt.input) + "█  (Enter accept, Esc cancel)"
 		case m.prompt != nil:
@@ -555,6 +573,20 @@ func (m Model) View() tea.View {
 			status += " | " + m.msg
 		}
 		s = ui.Frame(l, "Wordterm", nav, edit, status)
+		center := func(box string) {
+			x, y := max((m.width-lipgloss.Width(box))/2, 0), max((m.height-lipgloss.Height(box))/2, 0)
+			s = ui.Overlay(s, box, x, y)
+		}
+		switch {
+		case m.rebind != nil:
+			center(m.rebindBox())
+		case m.overlay == ovHelp:
+			center(m.helpBox())
+		case m.overlay == ovAbout:
+			center(m.aboutBox())
+		case m.menu != nil:
+			s = ui.Overlay(s, m.menuBox(), 0, 0)
+		}
 	}
 	v := tea.NewView(s)
 	v.AltScreen = true

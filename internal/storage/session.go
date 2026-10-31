@@ -14,6 +14,7 @@ type Session struct {
 	Original string
 	Dir      string // session directory under the OS temp dir
 	Root     string // Dir/project
+	started  time.Time
 }
 
 type info struct {
@@ -46,24 +47,34 @@ func Open(original string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Session{Original: abs, Dir: dir, Root: filepath.Join(dir, "project")}
+	s := &Session{Original: abs, Dir: dir, Root: filepath.Join(dir, "project"), started: time.Now()}
 	if err := CopyTree(abs, s.Root); err != nil {
 		os.RemoveAll(dir)
 		return nil, fmt.Errorf("creating working copy: %w", err)
 	}
-	if err := s.writeInfo(time.Now()); err != nil {
+	if err := s.writeInfo(); err != nil {
 		os.RemoveAll(dir)
 		return nil, err
 	}
 	return s, nil
 }
 
-func (s *Session) writeInfo(started time.Time) error {
-	data, err := json.MarshalIndent(info{s.Original, os.Getpid(), started}, "", "  ")
+func (s *Session) writeInfo() error {
+	data, err := json.MarshalIndent(info{s.Original, os.Getpid(), s.started}, "", "  ")
 	if err != nil {
 		return err
 	}
 	return WriteFileAtomic(filepath.Join(s.Dir, infoFile), data, 0o600)
+}
+
+// SetOriginal points the session at a new project directory (after Save As).
+func (s *Session) SetOriginal(path string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	s.Original = abs
+	return s.writeInfo()
 }
 
 // Save synchronises the working copy into the original project.
@@ -138,8 +149,8 @@ func FindRecoverable() ([]Recoverable, error) {
 
 // Adopt takes over a recoverable working copy for the current process.
 func Adopt(r Recoverable) (*Session, error) {
-	s := &Session{Original: r.Original, Dir: r.Dir, Root: r.Root}
-	return s, s.writeInfo(r.Started)
+	s := &Session{Original: r.Original, Dir: r.Dir, Root: r.Root, started: r.Started}
+	return s, s.writeInfo()
 }
 
 // Discard permanently deletes a recoverable working copy.

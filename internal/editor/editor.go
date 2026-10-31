@@ -24,6 +24,7 @@ type line struct {
 	cl     []string // one entry per grapheme cluster
 	starts []int    // wrap cache: first cluster of each visual row
 	w      int      // width the cache was computed for
+	wrap   bool     // wrap mode the cache was computed for
 }
 
 type Editor struct {
@@ -31,6 +32,8 @@ type Editor struct {
 	cur         pos
 	wantX       int
 	w, h, top   int
+	wrap        bool // word wrap on; off = horizontal scrolling
+	left        int  // first visible display column when wrap is off
 	undo, redo  []edit
 	dirty       bool
 }
@@ -56,7 +59,7 @@ func width(c string) int {
 // New creates an editor holding text (CRLF is normalised to LF).
 func New(text string) *Editor {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
-	e := &Editor{w: 80, h: 24}
+	e := &Editor{w: 80, h: 24, wrap: true}
 	for _, p := range strings.Split(text, "\n") {
 		e.lines = append(e.lines, &line{cl: clusters(p)})
 	}
@@ -74,6 +77,9 @@ func (e *Editor) Dirty() bool      { return e.dirty }
 func (e *Editor) ClearDirty()      { e.dirty = false }
 func (e *Editor) WordCount() int   { return len(strings.Fields(e.Text())) }
 func (e *Editor) SetSize(w, h int) { e.w, e.h = max(w, 1), max(h, 1); e.fixScroll() }
+
+// SetWrap switches word wrap on or off (off scrolls long lines horizontally).
+func (e *Editor) SetWrap(on bool) { e.wrap, e.left = on, 0; e.fixScroll() }
 
 // wrapLine returns the first cluster index of every visual row when the
 // line is word-wrapped at w columns. Spaces may hang past the edge.
@@ -104,8 +110,13 @@ func wrapLine(cl []string, w int) []int {
 
 func (e *Editor) segs(r int) []int {
 	l := e.lines[r]
-	if l.starts == nil || l.w != e.w {
-		l.starts, l.w = wrapLine(l.cl, e.w), e.w
+	if l.starts == nil || l.w != e.w || l.wrap != e.wrap {
+		if e.wrap {
+			l.starts = wrapLine(l.cl, e.w)
+		} else {
+			l.starts = []int{0}
+		}
+		l.w, l.wrap = e.w, e.wrap
 	}
 	return l.starts
 }
@@ -171,6 +182,15 @@ func (e *Editor) fixScroll() {
 		e.top = v - e.h + 1
 	}
 	e.top = max(e.top, 0)
+	if e.wrap {
+		e.left = 0
+		return
+	}
+	if cx := e.xOf(e.cur.r, e.cur.c); cx < e.left {
+		e.left = cx
+	} else if cx+1 > e.left+e.w {
+		e.left = cx + 1 - e.w
+	}
 }
 
 func (e *Editor) settle() {
@@ -202,6 +222,30 @@ func (e *Editor) renderRow(r, s int, focused bool) string {
 	cl := e.lines[r].cl
 	start, end := e.segs(r)[s], e.segEnd(r, s)
 	var sb strings.Builder
+	if !e.wrap {
+		x, clipped := 0, false
+		for i := start; i < end && !clipped; i++ {
+			c, cw := cl[i], width(cl[i])
+			switch {
+			case x < e.left:
+			case x-e.left+cw > e.w:
+				clipped = true
+			default:
+				if c == "\t" {
+					c = "    "
+				}
+				if focused && e.cur == (pos{r, i}) {
+					c = cursorStyle.Render(c)
+				}
+				sb.WriteString(c)
+			}
+			x += cw
+		}
+		if focused && !clipped && e.cur == (pos{r, end}) && x-e.left < e.w {
+			sb.WriteString(cursorStyle.Render(" "))
+		}
+		return sb.String()
+	}
 	for i := start; i < end; i++ {
 		c := cl[i]
 		if c == "\t" {

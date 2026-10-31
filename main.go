@@ -11,6 +11,7 @@ import (
 
 	"wordterm/internal/app"
 	"wordterm/internal/project"
+	"wordterm/internal/settings"
 	"wordterm/internal/storage"
 )
 
@@ -51,12 +52,14 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("working copy %s: %w", sess.Dir, err) // working copy is kept
 	}
-	final, runErr := tea.NewProgram(app.New(sess, proj)).Run()
+	cfg, note := settings.Load()
+	final, runErr := tea.NewProgram(app.New(sess, proj, cfg, note)).Run()
 
 	// Normal exit: delete the working copy if the user discarded it or nothing would be lost.
 	discarded := false
 	if fm, ok := final.(app.Model); ok {
 		discarded = fm.Discarded()
+		sess = fm.Session() // the session may have changed (New Project)
 	}
 	if has, err := sess.HasChanges(); discarded || (err == nil && !has) {
 		sess.Close()

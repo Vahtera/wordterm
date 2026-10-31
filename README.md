@@ -5,7 +5,7 @@ Distraction-free terminal writing app for chapter-based projects (Go, Bubble Tea
 ## Build and run
 
     go get charm.land/bubbletea/v2@latest charm.land/lipgloss/v2@latest
-    go get github.com/charmbracelet/x/ansi@latest github.com/rivo/uniseg@latest
+    go get github.com/charmbracelet/x/ansi@latest github.com/rivo/uniseg@latest github.com/BurntSushi/toml@latest
     go mod tidy
     go test ./...
     go run . new ~/Documents Example "Your Name"   # create a project and open it
@@ -37,4 +37,11 @@ After a crash the copy is kept; on next launch you are asked to recover or disca
   chapter edges and the file moves too). Selection is drawn in inverted colours. Questions and name
   prompts appear in the status bar until the dialog system arrives in Phase 5. F9/F10 and quit now ask
   for confirmation. Undo history is per open scene (reset when you switch scenes).
-- Phases 5-7: not started.
+- Phase 5 (menus and settings): Esc opens the main menu (File / Settings / Help; arrows + Enter).
+  File: New Project..., Save, Save As..., Quit. Settings: Editor Size and Write Size (arrows adjust live,
+  Enter finishes), Rebind Keys, Word Wrap (on = wrap at Write Size, off = horizontal scroll), Autosave
+  (off by default; interval in config.toml). Help: About, Keys (same as F1). All settings persist in
+  `<user config dir>/wordterm/config.toml` (Linux: ~/.config/wordterm/config.toml). Esc cannot be rebound.
+  Autosave and Save As are included; the About text assumes an MIT license and "The Wordterm authors" —
+  edit `internal/app/overlays.go` if that is wrong.
+- Phases 6-7: Screenwriter Mode (F11), crash-recovery polish, cross-platform testing.
