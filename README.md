@@ -75,7 +75,7 @@ Help: About..., Keys.
     └── Chapter2/
         └── Scene1_2.txt        stored under a different file name if a move would clash
 
-![wordterm Example Project](https://github.com/Vahtera/wordterm/example_project.png?raw=true)
+![wordterm Example Project](https://github.com/Vahtera/wordterm/blob/main/example_project.png?raw=true)
 
 The project folder must contain exactly one `.json` file. Chapter and scene order is stored in the JSON.
 A scene is a plain string in the JSON, or `{"name": "Scene1", "file": "Scene1_2"}` when its file name had
@@ -98,7 +98,7 @@ the original.
 Shows only the writing column (width = Write Size), centred, with the cursor line kept in the vertical middle.
 Prompts and messages appear on the bottom row only when needed.
 
-![wordterm with Screenwriter Mode enabled.](https://github.com/Vahtera/wordterm/screenwriter_mode.png?raw=true)
+![wordterm with Screenwriter Mode enabled.](https://github.com/Vahtera/wordterm/blob/main/screenwriter_mode.png?raw=true)
 
 ## Settings file
 
