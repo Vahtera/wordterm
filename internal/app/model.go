@@ -54,6 +54,8 @@ type Model struct {
 	overlay  overlayKind
 	adjust   adjustKind
 	rebind   *rebindState
+
+	welcome bool // built-in read-only help project (no project was given)
 }
 
 type overlayKind int
@@ -120,6 +122,9 @@ func (m *Model) openScene(ref project.SceneRef) {
 		return
 	}
 	m.cur, m.ed = ref, editor.New(txt)
+	if m.welcome {
+		m.ed = editor.New(m.helpText())
+	}
 	r := ref
 	m.proj.Meta.LastOpened = &r
 	m.nav.Expand(ref.Chapter)
@@ -174,6 +179,10 @@ func (m *Model) save() {
 }
 
 func (m *Model) requestReload() {
+	if m.welcome {
+		m.msg = "The built-in help project is read-only"
+		return
+	}
 	if m.flush() != nil {
 		return
 	}
@@ -292,7 +301,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tick()
 	case tea.PasteMsg:
 		if m.focus == FocusEditor && m.hasScene() {
-			m.ed.Insert(fmt.Sprint(msg))
+			if m.welcome {
+				m.offerNewProject()
+			} else {
+				m.ed.Insert(fmt.Sprint(msg))
+			}
 		}
 	case tea.KeyPressMsg:
 		if !m.layout().OK {
@@ -328,6 +341,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) editorKey(msg tea.KeyPressMsg) {
 	ed, k := m.ed, msg.String()
+	if m.welcome && isEditKey(msg, k) {
+		m.offerNewProject()
+		return
+	}
 	switch k {
 	case "left":
 		ed.Left()
@@ -393,6 +410,9 @@ func (m *Model) fail(err error) tea.Cmd {
 }
 
 func (m *Model) addItem() {
+	if m.readOnly() {
+		return
+	}
 	meta := &m.proj.Meta
 	it := m.nav.Selected(meta)
 	if it.Kind == navigator.Root {
@@ -425,6 +445,9 @@ func (m *Model) addItem() {
 }
 
 func (m *Model) deleteItem() {
+	if m.readOnly() {
+		return
+	}
 	meta := &m.proj.Meta
 	it := m.nav.Selected(meta)
 	switch it.Kind {
@@ -464,6 +487,9 @@ func (m *Model) deleteItem() {
 }
 
 func (m *Model) renameItem() {
+	if m.readOnly() {
+		return
+	}
 	meta := &m.proj.Meta
 	it := m.nav.Selected(meta)
 	switch it.Kind {
@@ -508,6 +534,9 @@ func (m *Model) renameItem() {
 
 // moveItem implements F5 (d=-1) and F6 (d=+1).
 func (m *Model) moveItem(d int) {
+	if m.readOnly() {
+		return
+	}
 	meta := &m.proj.Meta
 	it := m.nav.Selected(meta)
 	if it.Kind == navigator.Root || m.flush() != nil {
@@ -559,7 +588,11 @@ func (m Model) View() tea.View {
 		}
 		nav := ui.PaneContent{Header: "Navigator", Focused: m.focus == FocusNavigator,
 			Lines: m.nav.Lines(&m.proj.Meta, m.cur, l.NavW, l.PaneH-1)}
-		edit := ui.PaneContent{Header: "Editor", Lines: rows, Focused: m.focus == FocusEditor}
+		title, header := "Wordterm", "Editor"
+		if m.welcome {
+			title, header = "Wordterm - help (read-only)", "Editor (read-only)"
+		}
+		edit := ui.PaneContent{Header: header, Lines: rows, Focused: m.focus == FocusEditor}
 		status := fmt.Sprintf("Words: Scene: %d | Chapter: %d | Project: %d | Autosave: %s",
 			live, m.wc-m.ws+live, m.wp-m.ws+live, onOff(m.cfg.Autosave))
 		switch {
@@ -572,7 +605,7 @@ func (m Model) View() tea.View {
 		case m.msg != "":
 			status += " | " + m.msg
 		}
-		s = ui.Frame(l, "Wordterm", nav, edit, status)
+		s = ui.Frame(l, title, nav, edit, status)
 		center := func(box string) {
 			x, y := max((m.width-lipgloss.Width(box))/2, 0), max((m.height-lipgloss.Height(box))/2, 0)
 			s = ui.Overlay(s, box, x, y)

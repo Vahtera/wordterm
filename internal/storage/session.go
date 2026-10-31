@@ -15,6 +15,7 @@ type Session struct {
 	Dir      string // session directory under the OS temp dir
 	Root     string // Dir/project
 	started  time.Time
+	ephemeral bool
 }
 
 type info struct {
@@ -59,7 +60,16 @@ func Open(original string) (*Session, error) {
 	return s, nil
 }
 
+// Ephemeral marks the session as never worth recovering (used for the built-in help project).
+func (s *Session) Ephemeral() {
+	s.ephemeral = true
+	os.Remove(filepath.Join(s.Dir, infoFile))
+}
+
 func (s *Session) writeInfo() error {
+	if s.ephemeral {
+		return nil
+	}
 	data, err := json.MarshalIndent(info{s.Original, os.Getpid(), s.started}, "", "  ")
 	if err != nil {
 		return err

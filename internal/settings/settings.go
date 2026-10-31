@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
@@ -44,6 +45,8 @@ type Settings struct {
 	WordWrap         bool              `toml:"word_wrap"`
 	Autosave         bool              `toml:"autosave"`
 	AutosaveInterval int               `toml:"autosave_interval"` // seconds, minimum 5
+	DefaultSavePath  string            `toml:"default_save_path"` // parent folder for new projects
+	AuthorName       string            `toml:"author_name"`       // author of new projects
 	Keys             map[string]string `toml:"keys"`
 }
 
@@ -64,6 +67,16 @@ func Default() Settings {
 		s.Keys[a.ID] = a.Default
 	}
 	return s
+}
+
+// ExpandPath replaces a leading ~ with the home directory.
+func ExpandPath(p string) string {
+	if p == "~" || strings.HasPrefix(p, "~/") || strings.HasPrefix(p, `~\`) {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, p[1:])
+		}
+	}
+	return p
 }
 
 func Path() (string, error) {
@@ -93,6 +106,7 @@ func Load() (Settings, string) {
 	s.EditorWidth, s.WriteSize = max(in.EditorWidth, 0), max(in.WriteSize, 0)
 	s.WordWrap, s.Autosave = in.WordWrap, in.Autosave
 	s.AutosaveInterval = max(in.AutosaveInterval, 5)
+	s.DefaultSavePath, s.AuthorName = in.DefaultSavePath, in.AuthorName
 	note := ""
 	for _, a := range Actions {
 		if k, ok := in.Keys[a.ID]; ok && k != a.Default {

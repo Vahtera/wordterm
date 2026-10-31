@@ -8,8 +8,9 @@ Distraction-free terminal writing app for chapter-based projects (Go, Bubble Tea
     go get github.com/charmbracelet/x/ansi@latest github.com/rivo/uniseg@latest github.com/BurntSushi/toml@latest
     go mod tidy
     go test ./...
-    go run . new ~/Documents Example "Your Name"   # create a project and open it
+    go run .                                       # built-in read-only help; Esc > File > New Project
     go run . ~/Documents/Example                   # open an existing project
+    go run . new Example -path ~/Documents -author "Your Name"   # create a project and open it
 
 Cross-compile: `GOOS=windows GOARCH=arm64 go build -o wordterm.exe .` (same pattern for linux/darwin, amd64/arm64).
 
@@ -44,4 +45,8 @@ After a crash the copy is kept; on next launch you are asked to recover or disca
   `<user config dir>/wordterm/config.toml` (Linux: ~/.config/wordterm/config.toml). Esc cannot be rebound.
   Autosave and Save As are included; the About text assumes an MIT license and "The Wordterm authors" —
   edit `internal/app/overlays.go` if that is wrong.
+- Added after Phase 5: Settings > Default Save Path and Author Name (used by File > New Project and by
+  `wordterm new` when `-path` / `-author` are not given; New Project then asks only for a name).
+  Running `wordterm` with no arguments opens a read-only built-in project (chapter "Help", scene "Keys",
+  same text as F1); any attempt to edit, save or restructure it offers to create a new project instead.
 - Phases 6-7: Screenwriter Mode (F11), crash-recovery polish, cross-platform testing.

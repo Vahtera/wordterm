@@ -67,6 +67,8 @@ func (m Model) menus() []menuTab {
 			{label: "Rebind Keys", run: do(func(m *Model) { m.rebind = &rebindState{} })},
 			{label: "Word Wrap: " + onOff(m.cfg.WordWrap), run: do(func(m *Model) { m.toggleWrap() })},
 			{label: "Autosave: " + onOff(m.cfg.Autosave), run: do(func(m *Model) { m.toggleAutosave() })},
+			{label: "Default Save Path...", run: (*Model).askSavePath},
+			{label: "Author Name...", run: (*Model).askAuthor},
 		}},
 		{"Help", []menuItem{
 			{label: "About...", run: do(func(m *Model) { m.overlay = ovAbout })},

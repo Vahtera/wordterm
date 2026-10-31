@@ -10,18 +10,24 @@ import (
 
 const Version = "0.5.0"
 
-func (m Model) helpBox() string {
+// helpLines is the key list shown by F1 and by the built-in help project.
+func (m Model) helpLines() []string {
 	lines := []string{"Wordterm keys", "", fmt.Sprintf("%-10s %s", "Esc", "Main menu (fixed)")}
 	for _, a := range settings.Actions {
 		lines = append(lines, fmt.Sprintf("%-10s %s", m.cfg.Keys[a.ID], a.Label))
 	}
-	lines = append(lines, "",
+	return append(lines, "",
 		fmt.Sprintf("%-10s %s", "Arrows", "Move cursor / navigate tree"),
 		fmt.Sprintf("%-10s %s", "Enter", "Open scene / toggle chapter"),
 		fmt.Sprintf("%-10s %s", "Ctrl+Z/Y", "Undo / redo"),
 		fmt.Sprintf("%-10s %s", "Ctrl+C", "Quit (fixed)"),
-		"", "Esc or Q closes")
-	return boxStyle.Render(strings.Join(lines, "\n"))
+		"", "Start writing: Esc > File > New Project...")
+}
+
+func (m Model) helpText() string { return strings.Join(m.helpLines(), "\n") }
+
+func (m Model) helpBox() string {
+	return boxStyle.Render(strings.Join(append(m.helpLines(), "", "Esc or Q closes"), "\n"))
 }
 
 func (m Model) aboutBox() string {
@@ -65,6 +71,7 @@ func (m *Model) rebindKey(k string) {
 		}
 		r.msg = a.Label + " is now " + k
 		m.saveSettings()
+		m.refreshWelcome()
 		return
 	}
 	n := len(settings.Actions)
@@ -81,6 +88,7 @@ func (m *Model) rebindKey(k string) {
 		} else {
 			r.msg = a.Label + " reset to " + a.Default
 			m.saveSettings()
+			m.refreshWelcome()
 		}
 	case "esc", "q":
 		m.rebind = nil

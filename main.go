@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -15,7 +16,11 @@ import (
 	"wordterm/internal/storage"
 )
 
-const usage = "usage: wordterm <project-dir>  |  wordterm new <parent-dir> <name> <author>"
+const usage = `usage:
+  wordterm                       open the built-in help (read-only); create a project from the menu
+  wordterm <project-dir>         open a project
+  wordterm new <name> [-path DIR] [-author NAME]
+                                 create a project and open it (DIR and NAME default to the settings)`
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -24,22 +29,60 @@ func main() {
 	}
 }
 
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// projectDir resolves the command line to a project directory (creating it for "new").
+func projectDir(args []string, cfg settings.Settings) (string, error) {
+	switch {
+	case len(args) == 1 && args[0] != "new":
+		return args[0], nil
+	case len(args) >= 2 && args[0] == "new":
+		fs := flag.NewFlagSet("new", flag.ContinueOnError)
+		path := fs.String("path", "", "folder to create the project in")
+		author := fs.String("author", "", "author name")
+		if err := fs.Parse(args[2:]); err != nil {
+			return "", err
+		}
+		parent := firstNonEmpty(settings.ExpandPath(*path), settings.ExpandPath(cfg.DefaultSavePath), ".")
+		if err := os.MkdirAll(parent, 0o755); err != nil {
+			return "", err
+		}
+		return project.Create(parent, args[1], firstNonEmpty(*author, cfg.AuthorName), "")
+	}
+	return "", errors.New(usage)
+}
+
 func run(args []string) error {
+	cfg, note := settings.Load()
 	sess, err := offerRecovery()
 	if err != nil {
 		return err
 	}
-	if sess == nil {
-		var dir string
-		switch {
-		case len(args) == 4 && args[0] == "new":
-			if dir, err = project.Create(args[1], args[2], args[3], ""); err != nil {
-				return err
-			}
-		case len(args) == 1:
-			dir = args[0]
-		default:
-			return errors.New(usage)
+	var model app.Model
+	switch {
+	case sess != nil: // recovered a crashed session
+		proj, err := project.Load(sess.Root)
+		if err != nil {
+			return fmt.Errorf("working copy %s: %w", sess.Dir, err) // working copy is kept
+		}
+		model = app.New(sess, proj, cfg, note)
+	case len(args) == 0:
+		var helpDir string
+		if model, helpDir, err = app.NewWelcome(cfg, note); err != nil {
+			return err
+		}
+		defer os.RemoveAll(helpDir)
+	default:
+		dir, err := projectDir(args, cfg)
+		if err != nil {
+			return err
 		}
 		if _, err := project.Load(dir); err != nil { // validate the original before copying
 			return fmt.Errorf("cannot open %s: %w", dir, err)
@@ -47,24 +90,25 @@ func run(args []string) error {
 		if sess, err = storage.Open(dir); err != nil {
 			return err
 		}
+		proj, err := project.Load(sess.Root)
+		if err != nil {
+			sess.Close()
+			return err
+		}
+		model = app.New(sess, proj, cfg, note)
 	}
-	proj, err := project.Load(sess.Root)
-	if err != nil {
-		return fmt.Errorf("working copy %s: %w", sess.Dir, err) // working copy is kept
-	}
-	cfg, note := settings.Load()
-	final, runErr := tea.NewProgram(app.New(sess, proj, cfg, note)).Run()
+
+	final, runErr := tea.NewProgram(model).Run()
 
 	// Normal exit: delete the working copy if the user discarded it or nothing would be lost.
-	discarded := false
+	cur, discarded := model.Session(), false
 	if fm, ok := final.(app.Model); ok {
-		discarded = fm.Discarded()
-		sess = fm.Session() // the session may have changed (New Project)
+		cur, discarded = fm.Session(), fm.Discarded() // the session changes after New Project
 	}
-	if has, err := sess.HasChanges(); discarded || (err == nil && !has) {
-		sess.Close()
+	if has, err := cur.HasChanges(); discarded || (err == nil && !has) {
+		cur.Close()
 	} else {
-		fmt.Fprintln(os.Stderr, "Unsaved working copy kept at:", sess.Dir)
+		fmt.Fprintln(os.Stderr, "Unsaved working copy kept at:", cur.Dir)
 	}
 	return runErr
 }
