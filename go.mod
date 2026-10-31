@@ -1,4 +1,4 @@
-module wordterm
+module github.com/Vahtera/wordterm
 
 go 1.26.0
 

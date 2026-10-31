@@ -11,7 +11,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"wordterm/internal/storage"
+	"github.com/Vahtera/wordterm/internal/storage"
 )
 
 // Action is a rebindable command. NavOnly actions only fire while the

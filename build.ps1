@@ -14,7 +14,7 @@ foreach ($t in "linux/amd64","linux/arm64","windows/amd64","windows/arm64","darw
     $ext = if ($os -eq "windows") { ".exe" } else { "" }
     $env:GOOS = $os; $env:GOARCH = $arch
     Write-Host "== building wordterm-$os-$arch$ext"
-    go build -trimpath -ldflags "-s -w -X wordterm/internal/app.Version=$version" -o "dist/wordterm-$os-$arch$ext" .
+    go build -trimpath -ldflags "-s -w -X github.com/Vahtera/wordterm/internal/app.Version=$version" -o "dist/wordterm-$os-$arch$ext" .
     if ($LASTEXITCODE -ne 0) { throw "build failed for $t" }
 }
 Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED

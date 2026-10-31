@@ -7,9 +7,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"wordterm/internal/project"
-	"wordterm/internal/settings"
-	"wordterm/internal/ui"
+	"github.com/Vahtera/wordterm/internal/project"
+	"github.com/Vahtera/wordterm/internal/settings"
+	"github.com/Vahtera/wordterm/internal/ui"
 )
 
 // browseState is the folder browser behind File > Open Project...

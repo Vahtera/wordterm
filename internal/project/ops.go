@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"wordterm/internal/storage"
+	"github.com/Vahtera/wordterm/internal/storage"
 )
 
 // All operations here act on p.Root (the working copy). Each one changes the

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"wordterm/internal/settings"
-	"wordterm/internal/ui"
+	"github.com/Vahtera/wordterm/internal/settings"
+	"github.com/Vahtera/wordterm/internal/ui"
 )
 
-// Version is set at build time: -ldflags "-X wordterm/internal/app.Version=1.2.3"
+// Version is set at build time: -ldflags "-X github.com/Vahtera/wordterm/internal/app.Version=1.2.3"
 var Version = "1.0.0-dev"
 
 // helpLines is the key list shown by F1 and by the built-in help project.
@@ -34,7 +34,7 @@ func (m Model) helpBox() string {
 func (m Model) aboutBox() string {
 	return boxStyle.Render(strings.Join([]string{
 		"Wordterm", "Version " + Version, "",
-		"Copyright © 2026 Anna Vahtera", "License: GPLv3", "", "Esc or Q closes"}, "\n"))
+		"Copyright © 2026 The Wordterm authors", "License: GNU GPL v3", "", "Esc or Q closes"}, "\n"))
 }
 
 type rebindState struct {

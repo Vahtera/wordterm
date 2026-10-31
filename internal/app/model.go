@@ -10,12 +10,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"wordterm/internal/editor"
-	"wordterm/internal/navigator"
-	"wordterm/internal/project"
-	"wordterm/internal/settings"
-	"wordterm/internal/storage"
-	"wordterm/internal/ui"
+	"github.com/Vahtera/wordterm/internal/editor"
+	"github.com/Vahtera/wordterm/internal/navigator"
+	"github.com/Vahtera/wordterm/internal/project"
+	"github.com/Vahtera/wordterm/internal/settings"
+	"github.com/Vahtera/wordterm/internal/storage"
+	"github.com/Vahtera/wordterm/internal/ui"
 )
 
 type Focus int

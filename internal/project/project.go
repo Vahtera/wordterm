@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"wordterm/internal/storage"
+	"github.com/Vahtera/wordterm/internal/storage"
 )
 
 const FormatVersion = 1

@@ -8,8 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"wordterm/internal/settings"
-	"wordterm/internal/ui"
+	"github.com/Vahtera/wordterm/internal/settings"
+	"github.com/Vahtera/wordterm/internal/ui"
 )
 
 var (

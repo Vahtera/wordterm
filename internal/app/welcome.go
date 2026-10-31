@@ -6,10 +6,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"wordterm/internal/editor"
-	"wordterm/internal/project"
-	"wordterm/internal/settings"
-	"wordterm/internal/storage"
+	"github.com/Vahtera/wordterm/internal/editor"
+	"github.com/Vahtera/wordterm/internal/project"
+	"github.com/Vahtera/wordterm/internal/settings"
+	"github.com/Vahtera/wordterm/internal/storage"
 )
 
 // NewWelcome builds the read-only built-in project shown when Wordterm starts

@@ -9,6 +9,12 @@ Written in Go with Bubble Tea v2, Lip Gloss and Bubbles-era Charm libraries.
 
 You need Go (the version in `go.mod`).
 
+    go install github.com/Vahtera/wordterm@latest     # installs the `wordterm` command
+
+(Installed this way the About dialog shows the development version; use `build.sh` with `VERSION=...` for release builds.)
+
+From a checkout:
+
     go mod tidy                 # first time: fetches dependencies and writes go.sum
     go run .                    # try it
     ./build.sh                  # vet + test + build all targets into dist/
@@ -20,7 +26,7 @@ Copy the file for your system anywhere on your PATH. No other files are needed.
 `VERSION=1.2.3 ./build.sh` stamps the version shown in Help > About.
 
 Dependencies: bubbletea v2, lipgloss v2, charmbracelet/x/ansi, rivo/uniseg, BurntSushi/toml.
-If you start from a fresh checkout without `go.mod`: `go mod init wordterm`, then
+If you start from a fresh checkout without `go.mod`: `go mod init github.com/Vahtera/wordterm`, then
 `go get charm.land/bubbletea/v2 charm.land/lipgloss/v2 github.com/charmbracelet/x/ansi github.com/rivo/uniseg github.com/BurntSushi/toml` and `go mod tidy`.
 
 ## Usage

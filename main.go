@@ -1,5 +1,3 @@
-// Copyright 2026 Anna Vahtera. Under GPLv3 or later. See LICENSE.md for details.
-
 package main
 
 import (
@@ -13,10 +11,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"wordterm/internal/app"
-	"wordterm/internal/project"
-	"wordterm/internal/settings"
-	"wordterm/internal/storage"
+	"github.com/Vahtera/wordterm/internal/app"
+	"github.com/Vahtera/wordterm/internal/project"
+	"github.com/Vahtera/wordterm/internal/settings"
+	"github.com/Vahtera/wordterm/internal/storage"
 )
 
 const usage = `usage:

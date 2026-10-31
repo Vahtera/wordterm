@@ -4,8 +4,8 @@ package navigator
 import (
 	"charm.land/lipgloss/v2"
 
-	"wordterm/internal/project"
-	"wordterm/internal/ui"
+	"github.com/Vahtera/wordterm/internal/project"
+	"github.com/Vahtera/wordterm/internal/ui"
 )
 
 type Kind int

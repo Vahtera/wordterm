@@ -24,7 +24,7 @@ for t in "${TARGETS[@]}"; do
   out="dist/wordterm-${os}-${arch}${ext}"
   echo "== building ${out}"
   CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-    go build -trimpath -ldflags "-s -w -X wordterm/internal/app.Version=${VERSION}" -o "$out" .
+    go build -trimpath -ldflags "-s -w -X github.com/Vahtera/wordterm/internal/app.Version=${VERSION}" -o "$out" .
 done
 
 ( cd dist && { sha256sum wordterm-* 2>/dev/null || shasum -a 256 wordterm-*; } > SHA256SUMS )
