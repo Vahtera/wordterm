@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,7 +19,8 @@ import (
 
 const usage = `usage:
   wordterm                       open the built-in help (read-only); create a project from the menu
-  wordterm <project-dir>         open a project
+  wordterm <project-dir>         open a project; a bare name (wordterm Novel) is looked up
+                                 in the default save path first, then the current directory
   wordterm new <name> [-path DIR] [-author NAME]
                                  create a project and open it (DIR and NAME default to the settings)`
 
@@ -38,11 +40,34 @@ func firstNonEmpty(ss ...string) string {
 	return ""
 }
 
+// resolveProject turns the command-line argument into a project directory.
+// An explicit path (absolute, ~, or containing a separator) is used as given.
+// A bare name is tried in the default save path first, then the current directory.
+func resolveProject(arg string, cfg settings.Settings) (string, error) {
+	arg = settings.ExpandPath(arg)
+	if filepath.IsAbs(arg) || arg == "." || arg == ".." || strings.ContainsAny(arg, `/\`) {
+		return arg, nil
+	}
+	var errs []error
+	for _, base := range []string{settings.ExpandPath(cfg.DefaultSavePath), "."} {
+		if base == "" {
+			continue
+		}
+		dir := filepath.Join(base, arg)
+		_, err := project.Load(dir)
+		if err == nil {
+			return dir, nil
+		}
+		errs = append(errs, fmt.Errorf("%s: %w", dir, err))
+	}
+	return "", fmt.Errorf("no project named %q found:\n%w", arg, errors.Join(errs...))
+}
+
 // projectDir resolves the command line to a project directory (creating it for "new").
 func projectDir(args []string, cfg settings.Settings) (string, error) {
 	switch {
 	case len(args) == 1 && args[0] != "new":
-		return args[0], nil
+		return resolveProject(args[0], cfg)
 	case len(args) >= 2 && args[0] == "new":
 		fs := flag.NewFlagSet("new", flag.ContinueOnError)
 		path := fs.String("path", "", "folder to create the project in")

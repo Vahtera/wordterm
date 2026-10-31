@@ -9,7 +9,8 @@ Distraction-free terminal writing app for chapter-based projects (Go, Bubble Tea
     go mod tidy
     go test ./...
     go run .                                       # built-in read-only help; Esc > File > New Project
-    go run . ~/Documents/Example                   # open an existing project
+    go run . ~/Documents/Example                   # open an existing project (explicit path)
+    go run . Example                               # bare name: default save path first, then the current directory
     go run . new Example -path ~/Documents -author "Your Name"   # create a project and open it
 
 Cross-compile: `GOOS=windows GOARCH=arm64 go build -o wordterm.exe .` (same pattern for linux/darwin, amd64/arm64).
