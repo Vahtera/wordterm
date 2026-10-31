@@ -64,6 +64,7 @@ func (m Model) menus() []menuTab {
 		{"Settings", []menuItem{
 			{label: "Editor Size", run: do(func(m *Model) { m.adjust = adjEditor })},
 			{label: "Write Size", run: do(func(m *Model) { m.adjust = adjWrite })},
+			{label: "Screenwriter Mode (" + m.cfg.Keys["screenwriter"] + ")", run: do(func(m *Model) { m.toggleScreenwriter() })},
 			{label: "Rebind Keys", run: do(func(m *Model) { m.rebind = &rebindState{} })},
 			{label: "Word Wrap: " + onOff(m.cfg.WordWrap), run: do(func(m *Model) { m.toggleWrap() })},
 			{label: "Autosave: " + onOff(m.cfg.Autosave), run: do(func(m *Model) { m.toggleAutosave() })},
@@ -185,7 +186,12 @@ func (m *Model) doAction(id string) tea.Cmd {
 	switch id {
 	case "help":
 		m.overlay = ovHelp
+	case "screenwriter":
+		m.toggleScreenwriter()
 	case "switch_pane":
+		if m.screenwriter {
+			break // the Navigator is hidden
+		}
 		if m.focus == FocusNavigator {
 			m.focus = FocusEditor
 		} else {

@@ -88,3 +88,14 @@ func TestVerticalMoveOverWrap(t *testing.T) {
 		t.Fatalf("got %d", e.cur.c)
 	}
 }
+
+func TestCentered(t *testing.T) {
+	e := New("a\nb\nc")
+	e.SetSize(10, 5)
+	e.cur = pos{1, 0}
+	got := e.Centered(false)
+	want := []string{"", "a", "b", "c", ""}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}

@@ -218,6 +218,28 @@ func (e *Editor) Lines(focused bool) []string {
 	return out
 }
 
+// Centered returns exactly h rows with the cursor's row in the middle (rows
+// outside the document are empty), for Screenwriter Mode.
+func (e *Editor) Centered(focused bool) []string {
+	first := e.vrow() - e.h/2 // visual row shown at the top; may be negative
+	out := make([]string, e.h)
+	v := 0
+	for r := 0; r < len(e.lines) && v < first+e.h; r++ {
+		st := e.segs(r)
+		if v+len(st) <= first {
+			v += len(st)
+			continue
+		}
+		for s := range st {
+			if i := v - first; i >= 0 && i < e.h {
+				out[i] = e.renderRow(r, s, focused)
+			}
+			v++
+		}
+	}
+	return out
+}
+
 func (e *Editor) renderRow(r, s int, focused bool) string {
 	cl := e.lines[r].cl
 	start, end := e.segs(r)[s], e.segEnd(r, s)

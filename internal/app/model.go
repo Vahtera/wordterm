@@ -2,6 +2,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -56,6 +57,10 @@ type Model struct {
 	rebind   *rebindState
 
 	welcome bool // built-in read-only help project (no project was given)
+
+	screenwriter bool
+	prevFocus    Focus
+	autoPaused   bool // autosave stopped because the original changed outside Wordterm
 }
 
 type overlayKind int
@@ -133,7 +138,30 @@ func (m *Model) openScene(ref project.SceneRef) {
 	m.refreshCounts()
 }
 
+// tooSmall: Screenwriter Mode needs far less room than the two-pane layout.
+func (m Model) tooSmall() bool {
+	if m.screenwriter {
+		return m.width < ui.MinEditorWidth || m.height < 3
+	}
+	return !m.layout().OK
+}
+
+// swWidth is the writing column in Screenwriter Mode: the same column as in the
+// normal layout (Write Size, never wider than the editor), limited to the terminal.
+func (m Model) swWidth() int {
+	w := m.width
+	if l := m.layout(); l.OK {
+		w = m.writeW(l)
+	}
+	return max(min(w, m.width), 1)
+}
+
 func (m *Model) syncSize() {
+	if m.screenwriter {
+		m.ed.SetWrap(m.cfg.WordWrap)
+		m.ed.SetSize(m.swWidth(), max(m.height, 1))
+		return
+	}
 	if l := m.layout(); l.OK {
 		m.ed.SetWrap(m.cfg.WordWrap)
 		m.ed.SetSize(m.writeW(l), l.PaneH-1) // 1 header row
@@ -163,7 +191,12 @@ func (m *Model) flush() error {
 	return nil
 }
 
-func (m *Model) save() {
+func (m *Model) save() { m.saveWith(true) }
+
+// saveWith saves the working copy to the original. If the original changed
+// outside Wordterm it asks before overwriting (interactive) or, for autosave,
+// pauses autosave instead of interrupting the writer with a question.
+func (m *Model) saveWith(interactive bool) {
 	if m.flush() != nil {
 		return
 	}
@@ -171,11 +204,31 @@ func (m *Model) save() {
 		m.msg = "Save failed: " + err.Error()
 		return
 	}
-	if err := m.sess.Save(); err != nil { // working copy -> original
+	err := m.sess.Save() // working copy -> original
+	switch {
+	case errors.Is(err, storage.ErrOriginalChanged):
+		if !interactive {
+			m.autoPaused = true
+			m.msg = "Autosave paused: the project changed outside Wordterm (save manually)"
+			return
+		}
+		m.ask("The project changed outside Wordterm (or was recovered). Overwrite it? (y/n)", "yn",
+			func(m *Model, a string) tea.Cmd {
+				if a == "y" {
+					if err := m.sess.ForceSave(); err != nil {
+						return m.fail(err)
+					}
+					m.autoPaused = false
+					m.msg = "Saved"
+				}
+				return nil
+			})
+	case err != nil:
 		m.msg = "Save failed (working copy kept): " + err.Error()
-		return
+	default:
+		m.autoPaused = false
+		m.msg = "Saved"
 	}
-	m.msg = "Saved"
 }
 
 func (m *Model) requestReload() {
@@ -308,7 +361,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tea.KeyPressMsg:
-		if !m.layout().OK {
+		if m.tooSmall() {
 			m.flush()
 			return m, tea.Quit // any key quits from the too-small screen
 		}
@@ -570,13 +623,85 @@ func (m *Model) moveItem(d int) {
 	m.refreshCounts()
 }
 
+// promptText is the status-bar text of the open prompt.
+func (m Model) promptText() string {
+	if m.prompt.text {
+		return m.prompt.label + " " + string(m.prompt.input) + "█  (Enter accept, Esc cancel)"
+	}
+	return m.prompt.label
+}
+
+// screenwriterView draws only the writing column: the cursor row is vertically
+// centred, the column horizontally centred, and nothing else is shown except a
+// one-line notice (prompt or message) on the bottom row when there is one.
+func (m Model) screenwriterView() string {
+	cw := m.swWidth()
+	margin := strings.Repeat(" ", max((m.width-cw)/2, 0))
+	var rows []string
+	if m.hasScene() {
+		rows = m.ed.Centered(true)
+	}
+	lines := make([]string, m.height)
+	for i := range lines {
+		row := ""
+		if i < len(rows) {
+			row = rows[i]
+		}
+		lines[i] = ui.Pad(margin+ui.Pad(row, cw), m.width)
+	}
+	notice := ""
+	switch {
+	case m.adjust != adjNone:
+		notice = m.adjustHint(m.layout())
+	case m.prompt != nil:
+		notice = m.promptText()
+	case m.msg != "" && m.msg != "Autosaved":
+		notice = m.msg
+	}
+	if notice != "" {
+		lines[m.height-1] = invert.Render(ui.Pad(" "+notice, m.width))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *Model) toggleScreenwriter() {
+	m.screenwriter = !m.screenwriter
+	if m.screenwriter {
+		m.prevFocus, m.focus = m.focus, FocusEditor
+	} else {
+		m.focus = m.prevFocus
+	}
+	m.syncSize()
+}
+
+// applyOverlays draws the menu and dialogs on top of the screen.
+func (m Model) applyOverlays(s string) string {
+	center := func(box string) string {
+		x, y := max((m.width-lipgloss.Width(box))/2, 0), max((m.height-lipgloss.Height(box))/2, 0)
+		return ui.Overlay(s, box, x, y)
+	}
+	switch {
+	case m.rebind != nil:
+		return center(m.rebindBox())
+	case m.overlay == ovHelp:
+		return center(m.helpBox())
+	case m.overlay == ovAbout:
+		return center(m.aboutBox())
+	case m.menu != nil:
+		return ui.Overlay(s, m.menuBox(), 0, 0)
+	}
+	return s
+}
+
 func (m Model) View() tea.View {
 	var s string
 	switch l := m.layout(); {
 	case m.width == 0:
 		s = ""
-	case !l.OK:
+	case m.tooSmall():
 		s = ui.TooSmall(m.width, m.height)
+	case m.screenwriter:
+		s = m.applyOverlays(m.screenwriterView())
 	default:
 		var rows []string
 		live := 0
@@ -598,28 +723,12 @@ func (m Model) View() tea.View {
 		switch {
 		case m.adjust != adjNone:
 			status = m.adjustHint(l)
-		case m.prompt != nil && m.prompt.text:
-			status = m.prompt.label + " " + string(m.prompt.input) + "█  (Enter accept, Esc cancel)"
 		case m.prompt != nil:
-			status = m.prompt.label
+			status = m.promptText()
 		case m.msg != "":
 			status += " | " + m.msg
 		}
-		s = ui.Frame(l, title, nav, edit, status)
-		center := func(box string) {
-			x, y := max((m.width-lipgloss.Width(box))/2, 0), max((m.height-lipgloss.Height(box))/2, 0)
-			s = ui.Overlay(s, box, x, y)
-		}
-		switch {
-		case m.rebind != nil:
-			center(m.rebindBox())
-		case m.overlay == ovHelp:
-			center(m.helpBox())
-		case m.overlay == ovAbout:
-			center(m.aboutBox())
-		case m.menu != nil:
-			s = ui.Overlay(s, m.menuBox(), 0, 0)
-		}
+		s = m.applyOverlays(ui.Frame(l, title, nav, edit, status))
 	}
 	v := tea.NewView(s)
 	v.AltScreen = true

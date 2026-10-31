@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -95,5 +96,27 @@ func TestRecovery(t *testing.T) {
 	}
 	if recs, _ := storage.FindRecoverable(); len(recs) != 0 {
 		t.Fatal("adopted session must not be recoverable")
+	}
+}
+
+func TestOutsideChangeIsNotOverwrittenSilently(t *testing.T) {
+	orig, s := setup(t)
+	scene := filepath.Join("Chapter1", "Scene1.txt")
+	os.WriteFile(filepath.Join(orig, scene), []byte("edited elsewhere"), 0o644)
+	os.WriteFile(filepath.Join(s.Root, scene), []byte("my words"), 0o644)
+	if err := s.Save(); !errors.Is(err, storage.ErrOriginalChanged) {
+		t.Fatalf("Save err = %v, want ErrOriginalChanged", err)
+	}
+	if read(t, filepath.Join(orig, scene)) != "edited elsewhere" {
+		t.Fatal("original was overwritten without confirmation")
+	}
+	if err := s.ForceSave(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, filepath.Join(orig, scene)) != "my words" {
+		t.Fatal("ForceSave did not write")
+	}
+	if err := s.Save(); err != nil {
+		t.Fatalf("after ForceSave a plain Save must work: %v", err)
 	}
 }

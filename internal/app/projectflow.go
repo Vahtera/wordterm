@@ -32,7 +32,7 @@ func (m *Model) askTextOptional(label, initial string, done func(*Model, string)
 }
 
 func (m *Model) autosave() {
-	if !m.cfg.Autosave || m.prompt != nil || m.welcome {
+	if !m.cfg.Autosave || m.prompt != nil || m.welcome || m.autoPaused {
 		return
 	}
 	iv := time.Duration(max(m.cfg.AutosaveInterval, 5)) * time.Second
@@ -46,7 +46,7 @@ func (m *Model) autosave() {
 	if has, err := m.sess.HasChanges(); err != nil || !has {
 		return
 	}
-	if m.save(); m.msg == "Saved" {
+	if m.saveWith(false); m.msg == "Saved" {
 		m.msg = "Autosaved"
 	}
 }

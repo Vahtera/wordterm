@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,7 +17,12 @@ type Session struct {
 	Root     string // Dir/project
 	started  time.Time
 	ephemeral bool
+	baseline  map[string]string // the original as we last saw it (nil = unknown, e.g. recovered)
 }
+
+// ErrOriginalChanged means the original project differs from what this
+// session last read or wrote, so a plain Save could overwrite outside changes.
+var ErrOriginalChanged = errors.New("the original project changed since this working copy was made")
 
 type info struct {
 	Original string    `json:"original"`
@@ -53,6 +59,12 @@ func Open(original string) (*Session, error) {
 		os.RemoveAll(dir)
 		return nil, fmt.Errorf("creating working copy: %w", err)
 	}
+	snap, err := snapshot(abs)
+	if err != nil {
+		os.RemoveAll(dir)
+		return nil, fmt.Errorf("reading original: %w", err)
+	}
+	s.baseline = snap
 	if err := s.writeInfo(); err != nil {
 		os.RemoveAll(dir)
 		return nil, err
@@ -84,12 +96,39 @@ func (s *Session) SetOriginal(path string) error {
 		return err
 	}
 	s.Original = abs
+	if snap, err := snapshot(abs); err == nil {
+		s.baseline = snap
+	}
 	return s.writeInfo()
 }
 
 // Save synchronises the working copy into the original project.
 // On failure the working copy is untouched.
-func (s *Session) Save() error { return SyncTree(s.Root, s.Original) }
+// It refuses with ErrOriginalChanged if the original was modified outside
+// Wordterm; use ForceSave after the user confirms.
+func (s *Session) Save() error {
+	cur, err := snapshot(s.Original)
+	if err != nil {
+		return err
+	}
+	if s.baseline == nil || !equalSnap(cur, s.baseline) {
+		return ErrOriginalChanged
+	}
+	return s.ForceSave()
+}
+
+// ForceSave synchronises without checking for outside changes.
+func (s *Session) ForceSave() error {
+	if err := SyncTree(s.Root, s.Original); err != nil {
+		return err
+	}
+	snap, err := snapshot(s.Original)
+	if err != nil {
+		return err
+	}
+	s.baseline = snap
+	return nil
+}
 
 // HasChanges reports whether the working copy differs from the original.
 func (s *Session) HasChanges() (bool, error) {
@@ -116,6 +155,9 @@ func (s *Session) Reload() error {
 		return err
 	}
 	os.RemoveAll(old)
+	if snap, err := snapshot(s.Original); err == nil {
+		s.baseline = snap
+	}
 	return nil
 }
 

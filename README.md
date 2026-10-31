@@ -50,4 +50,9 @@ After a crash the copy is kept; on next launch you are asked to recover or disca
   `wordterm new` when `-path` / `-author` are not given; New Project then asks only for a name).
   Running `wordterm` with no arguments opens a read-only built-in project (chapter "Help", scene "Keys",
   same text as F1); any attempt to edit, save or restructure it offers to create a new project instead.
-- Phases 6-7: Screenwriter Mode (F11), crash-recovery polish, cross-platform testing.
+- Phase 6: Screenwriter Mode (F11 or Settings > Screenwriter Mode): only the writing column is shown, the
+  cursor row stays vertically centred, the column (Write Size wide) is horizontally centred; prompts and
+  messages appear on the bottom row only when needed. Safety: if the original project was changed outside
+  Wordterm (or the session was recovered after a crash), Save asks before overwriting, and autosave pauses
+  instead of overwriting.
+- Phase 7 (cross-platform testing, builds, documentation): not started.

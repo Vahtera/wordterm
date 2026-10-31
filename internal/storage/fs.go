@@ -180,13 +180,17 @@ func TreesEqual(a, b string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(sa) != len(sb) {
-		return false, nil
+	return equalSnap(sa, sb), nil
+}
+
+func equalSnap(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
 	}
-	for k, v := range sa {
-		if w, ok := sb[k]; !ok || w != v {
-			return false, nil
+	for k, v := range a {
+		if w, ok := b[k]; !ok || w != v {
+			return false
 		}
 	}
-	return true, nil
+	return true
 }

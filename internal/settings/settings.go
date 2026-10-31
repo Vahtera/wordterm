@@ -24,6 +24,7 @@ type Action struct {
 var Actions = []Action{
 	{"help", "Help overlay", "f1", false},
 	{"switch_pane", "Switch pane", "f3", false},
+	{"screenwriter", "Screenwriter mode", "f11", false},
 	{"save", "Save project", "f10", false},
 	{"reload", "Reload project", "f9", false},
 	{"quit", "Quit", "ctrl+q", false},
