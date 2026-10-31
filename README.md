@@ -5,7 +5,7 @@ Distraction-free terminal writing app for chapter-based projects (Go, Bubble Tea
 ## Build and run
 
     go get charm.land/bubbletea/v2@latest charm.land/lipgloss/v2@latest
-    go get github.com/charmbracelet/x/ansi@latest
+    go get github.com/charmbracelet/x/ansi@latest github.com/rivo/uniseg@latest
     go mod tidy
     go test ./...
     go run . new ~/Documents Example "Your Name"   # create a project and open it
@@ -22,8 +22,11 @@ After a crash the copy is kept; on next launch you are asked to recover or disca
 ## Status
 
 - Phase 1 (foundation): done.
-- Phase 2 (project management): project JSON + validation, create/load, working copy, save, reload,
-  crash recovery, last-opened scene, word counts. Navigator is a read-only tree and the editor a
-  read-only preview until Phases 3-4. Keys: F3 pane, F9 reload, F10 save (no confirmation dialogs
-  until Phase 5), Ctrl+Q quit.
-- Phases 3-7: not started.
+- Phase 2 (project management): done.
+- Phase 3 (editor): grapheme-aware text buffer, word wrap, scrolling, undo/redo, paste. Focus the
+  editor with F3 and type. Edits live in memory and are written to the working copy every 2 s, on
+  F10/F9 and on quit; the original changes only on F10. Navigator is still a read-only tree
+  (Phase 4). Keys: arrows, Home/End, PgUp/PgDn, Backspace/Delete, Ctrl+Z undo, Ctrl+Y redo,
+  F3 pane, F9 reload, F10 save, Ctrl+Q quit. Quitting with unsaved edits keeps the working copy
+  and offers recovery on next start (quit prompt arrives in Phase 5).
+- Phases 4-7: not started.
