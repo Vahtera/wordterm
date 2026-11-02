@@ -98,6 +98,8 @@ the original.
 
 ### Themes
 
+![Sakura Theme](https://github.com/Vahtera/wordterm/blob/main/theme_sakura.png?raw=true)
+
 Settings > Change Theme... previews each theme as you move through the list (Enter keeps it, Esc cancels).
 Built in: **Default** (your terminal's own colors, exactly as without theming), **High-contrast**, **Pastel**,
 **Sakura**, **Ocean**, and **User Theme**.
@@ -119,6 +121,8 @@ Built-in themes can be tweaked in `config.toml`, for example:
     [themes.ocean]
     editor_foreground = "light_green"   # any palette name or "#rrggbb"
     title_foreground  = "#ffcc00"
+
+![Ocean Theme](https://github.com/Vahtera/wordterm/blob/main/theme_ocean.png?raw=true)
 
 ### Screenwriter Mode
 
