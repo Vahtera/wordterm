@@ -34,7 +34,7 @@ func TestBuiltinThemes(t *testing.T) {
 	cfg := settings.Default()
 	cfg.Theme = "sakura"
 	th, _ := Resolve(cfg)
-	if th.EditorBG != "#000000" || th.NavBG != "#3a3a3a" || th.FrameFG != "#c0c0c0" || th.NavFG != "#ffffff" {
+	if th.EditorBG != "#000000" || th.NavBG != "#3a3a3a" || th.FrameFG != "#ffd1dc" || th.NavFG != "#ffd1dc" || th.TitleFG != "#ff9999" {
 		t.Fatalf("sakura = %+v", th)
 	}
 }

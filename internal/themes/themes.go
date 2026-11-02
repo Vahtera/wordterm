@@ -70,8 +70,8 @@ var builtin = map[string]settings.ThemeColors{
 	},
 	"sakura": {
 		EditorBackground: "black", NavigatorBackground: "dark_gray", OverlayBackground: "dark_gray",
-		NavigatorForeground: "white", EditorForeground: "#ffd1dc", OverlayForeground: "white",
-		TitleForeground: "#ffb7c5", FrameForeground: "light_gray",
+		NavigatorForeground: "#ffd1dc", EditorForeground: "#ffd1dc", OverlayForeground: "#ff9999",
+		TitleForeground: "#ff9999", FrameForeground: "#ffd1dc",
 	},
 	"ocean": {
 		EditorBackground: "#08161f", NavigatorBackground: "#0d2433", OverlayBackground: "#123247",
