@@ -60,7 +60,7 @@ func (m Model) menus() []menuTab {
 			{label: "Quit", run: (*Model).requestQuit},
 		}},
 		{"Settings", []menuItem{
-			{label: "Editor Size", run: do(func(m *Model) { m.adjust = adjEditor })},
+			{label: "Navigator Size", run: do(func(m *Model) { m.adjust = adjNav })},
 			{label: "Write Size", run: do(func(m *Model) { m.adjust = adjWrite })},
 			{label: "Screenwriter Mode (" + m.cfg.Keys["screenwriter"] + ")", run: do(func(m *Model) { m.toggleScreenwriter() })},
 			{label: "Rebind Keys", run: do(func(m *Model) { m.rebind = &rebindState{} })},

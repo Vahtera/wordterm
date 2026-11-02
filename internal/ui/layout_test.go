@@ -25,3 +25,18 @@ func TestComputeAddsUp(t *testing.T) {
 		}
 	}
 }
+
+func TestNavigatorWidthIsFixedAndEditorTakesTheRest(t *testing.T) {
+	if l := Compute(100, 24, 0); l.NavW != DefaultNavWidth || l.EditW != 100-3-DefaultNavWidth {
+		t.Fatalf("default: %+v", l)
+	}
+	if l := Compute(100, 24, 30); l.NavW != 30 || l.EditW != 67 {
+		t.Fatalf("30 wide navigator: %+v", l)
+	}
+	if l := Compute(150, 24, 30); l.NavW != 30 { // a wider window only widens the editor
+		t.Fatalf("resize: %+v", l)
+	}
+	if l := Compute(31, 7, 0); l.NavW != MinNavWidth || l.EditW != MinEditorWidth {
+		t.Fatalf("minimum window: %+v", l)
+	}
+}

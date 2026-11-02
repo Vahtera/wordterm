@@ -6,6 +6,9 @@ const (
 	MinEditorWidth = 20
 	MinPaneHeight  = 3
 
+	// DefaultNavWidth is the Navigator width when none is configured.
+	DefaultNavWidth = 16
+
 	// Fixed chrome: 3 vertical border columns (left, divider, right) and
 	// 4 rows (top border, divider row, status bar, bottom border).
 	chromeW = 3
@@ -26,27 +29,23 @@ func MinSize() (w, h int) {
 	return MinNavWidth + MinEditorWidth + chromeW, MinPaneHeight + chromeH
 }
 
-// Compute divides the terminal. prefEditor is the desired editor width;
-// pass 0 for the default (70% of the available width). The editor is
-// clamped so neither pane drops below its minimum.
-func Compute(w, h, prefEditor int) Layout {
+// Compute divides the terminal. prefNav is the desired Navigator width (0 =
+// DefaultNavWidth); the Editor gets everything that is left. The Navigator
+// width is clamped so neither pane drops below its minimum.
+func Compute(w, h, prefNav int) Layout {
 	l := Layout{Width: w, Height: h}
 	mw, mh := MinSize()
 	if w < mw || h < mh {
 		return l
 	}
 	avail := w - chromeW
-	e := prefEditor
-	if e <= 0 {
-		e = avail * 70 / 100
+	n := prefNav
+	if n <= 0 {
+		n = DefaultNavWidth
 	}
-	if e < MinEditorWidth {
-		e = MinEditorWidth
-	}
-	if e > avail-MinNavWidth {
-		e = avail - MinNavWidth
-	}
-	l.EditW, l.NavW = e, avail-e
+	n = max(n, MinNavWidth)
+	n = min(n, avail-MinEditorWidth)
+	l.NavW, l.EditW = n, avail-n
 	l.PaneH = h - chromeH
 	l.OK = true
 	return l

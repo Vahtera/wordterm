@@ -9,9 +9,6 @@ Written in Go with Bubble Tea v2, Lip Gloss and Bubbles-era Charm libraries.
 
 ## Install / build
 
->[!TIP]
->Grab pre-built binaries for Linux/Mac/Windows for both x86/arm from Releases.
-
 You need Go (the version in `go.mod`).
 
     go install github.com/Vahtera/wordterm@latest     # installs the `wordterm` command
@@ -65,7 +62,7 @@ The default pane switch is F3 rather than Ctrl+Tab because most terminals cannot
 ### Menus
 
 File: New Project..., Open Project..., Save, Save As..., Quit.
-Settings: Editor Size, Write Size, Screenwriter Mode, Rebind Keys, Word Wrap, Autosave, Change Theme..., Default Save Path..., Author Name...
+Settings: Navigator Size, Write Size, Screenwriter Mode, Rebind Keys, Word Wrap, Autosave, Change Theme..., Default Save Path..., Author Name...
 Help: About..., Keys.
 
 ## Projects
@@ -122,21 +119,21 @@ Built-in themes can be tweaked in `config.toml`, for example:
     editor_foreground = "light_green"   # any palette name or "#rrggbb"
     title_foreground  = "#ffcc00"
 
-![Ocean Theme](https://github.com/Vahtera/wordterm/blob/main/theme_ocean.png?raw=true)
+![Ocean Theme](https://github.com/Vahtera/wordterm/blob/main/theme_ocean.png?raw=true)    
 
 ### Screenwriter Mode
 
+![wordterm with Screenwriter Mode enabled.](https://github.com/Vahtera/wordterm/blob/main/screenwriter_mode.png?raw=true)
+
 Shows only the writing column (width = Write Size), centred, with the cursor line kept in the vertical middle.
 Prompts and messages appear on the bottom row only when needed.
-
-![wordterm with Screenwriter Mode enabled.](https://github.com/Vahtera/wordterm/blob/main/screenwriter_mode.png?raw=true)
 
 ## Settings file
 
 Created on first change; plain TOML. Location: `~/.config/wordterm/config.toml` (Linux),
 `~/Library/Application Support/wordterm/config.toml` (macOS), `%AppData%\wordterm\config.toml` (Windows).
 
-    editor_width = 0            # 0 = default (70% of the window)
+    navigator_width = 0         # 0 = default (16 columns); the editor gets the rest
     write_size = 0              # 0 = same as the editor width
     word_wrap = true
     autosave = false            # off by default

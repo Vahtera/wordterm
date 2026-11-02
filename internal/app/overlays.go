@@ -106,7 +106,7 @@ func (m Model) writeW(l ui.Layout) int {
 }
 
 func (m Model) adjustHint(l ui.Layout) string {
-	name, val := "Editor Size", l.EditW
+	name, val := "Navigator Size", l.NavW
 	if m.adjust == adjWrite {
 		name, val = "Write Size", m.writeW(l)
 	}
@@ -130,8 +130,8 @@ func (m *Model) adjustKey(k string) {
 		return
 	}
 	l := m.layout()
-	if m.adjust == adjEditor {
-		m.cfg.EditorWidth = ui.Compute(m.width, m.height, l.EditW+d).EditW
+	if m.adjust == adjNav {
+		m.cfg.NavigatorWidth = ui.Compute(m.width, m.height, l.NavW+d).NavW
 	} else {
 		avail := max(l.EditW-2, 1)
 		n := min(max(m.writeW(l)+d, min(10, avail)), avail)

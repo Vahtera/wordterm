@@ -79,7 +79,7 @@ type adjustKind int
 
 const (
 	adjNone adjustKind = iota
-	adjEditor
+	adjNav
 	adjWrite
 )
 
@@ -350,7 +350,7 @@ func (m *Model) promptKey(msg tea.KeyPressMsg) tea.Cmd {
 
 func (m Model) Init() tea.Cmd { return tick() }
 
-func (m Model) layout() ui.Layout { return ui.Compute(m.width, m.height, m.cfg.EditorWidth) }
+func (m Model) layout() ui.Layout { return ui.Compute(m.width, m.height, m.cfg.NavigatorWidth) }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {

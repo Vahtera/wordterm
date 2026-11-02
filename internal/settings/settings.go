@@ -54,7 +54,7 @@ type ThemeColors struct {
 }
 
 type Settings struct {
-	EditorWidth      int               `toml:"editor_width"`      // 0 = default
+	NavigatorWidth   int               `toml:"navigator_width"`   // 0 = default (16)
 	WriteSize        int               `toml:"write_size"`        // 0 = same as editor width
 	WordWrap         bool              `toml:"word_wrap"`
 	Autosave         bool              `toml:"autosave"`
@@ -120,7 +120,7 @@ func Load() (Settings, string) {
 		os.Rename(path, path+".broken")
 		return s, "Invalid config moved to config.toml.broken; using defaults"
 	}
-	s.EditorWidth, s.WriteSize = max(in.EditorWidth, 0), max(in.WriteSize, 0)
+	s.NavigatorWidth, s.WriteSize = max(in.NavigatorWidth, 0), max(in.WriteSize, 0)
 	s.WordWrap, s.Autosave = in.WordWrap, in.Autosave
 	s.AutosaveInterval = max(in.AutosaveInterval, 5)
 	s.DefaultSavePath, s.AuthorName = in.DefaultSavePath, in.AuthorName
