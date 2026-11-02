@@ -60,7 +60,7 @@ The default pane switch is F3 rather than Ctrl+Tab because most terminals cannot
 ### Menus
 
 File: New Project..., Open Project..., Save, Save As..., Quit.
-Settings: Editor Size, Write Size, Screenwriter Mode, Rebind Keys, Word Wrap, Autosave, Default Save Path..., Author Name...
+Settings: Editor Size, Write Size, Screenwriter Mode, Rebind Keys, Word Wrap, Autosave, Change Theme..., Default Save Path..., Author Name...
 Help: About..., Keys.
 
 ## Projects
@@ -89,6 +89,30 @@ If Wordterm is killed or crashes, the working copy stays. The next start offers 
 the last couple of seconds of typing can be lost. After recovering, the first Save asks once before overwriting
 the original.
 
+### Themes
+
+Settings > Change Theme... previews each theme as you move through the list (Enter keeps it, Esc cancels).
+Built in: **Default** (your terminal's own colors, exactly as without theming), **High-contrast**, **Pastel**,
+**Sakura**, **Ocean**, and **User Theme**.
+
+A theme sets eight colors: editor / navigator / overlay (menus and dialogs) background, editor / navigator /
+overlay foreground (text), title foreground ("Wordterm", "Navigator", "Editor") and frame foreground (the lines).
+The navigator background also fills the frame and status bar. Themes use 24-bit color; terminals with fewer
+colors get the nearest match.
+
+**User Theme** reads `theme.conf` from the config folder (next to `config.toml`). It is created at launch if it
+is missing, with every color set to `default`, which means no theme. The file starts with a `[colors]` list of
+named colors (`dark_blue`, `light_green`, ... you can edit it or add your own as `my_color = "#rrggbb"`), followed
+by a `[theme]` section where each of the eight parts gets a name from the list, a hex value, or `default`.
+
+Built-in themes can be tweaked in `config.toml`, for example:
+
+    theme = "ocean"
+
+    [themes.ocean]
+    editor_foreground = "light_green"   # any palette name or "#rrggbb"
+    title_foreground  = "#ffcc00"
+
 ### Screenwriter Mode
 
 Shows only the writing column (width = Write Size), centred, with the cursor line kept in the vertical middle.
@@ -106,6 +130,7 @@ Created on first change; plain TOML. Location: `~/.config/wordterm/config.toml` 
     autosave_interval = 60      # seconds, minimum 5
     default_save_path = ""
     author_name = ""
+    theme = "default"           # default | high-contrast | pastel | sakura | ocean | user
 
     [keys]
     save = "f10"                # one entry per action; see Settings > Rebind Keys

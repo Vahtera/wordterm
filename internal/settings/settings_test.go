@@ -39,6 +39,7 @@ func TestRoundTrip(t *testing.T) {
 	s := Default()
 	s.Autosave, s.EditorWidth = true, 50
 	s.DefaultSavePath, s.AuthorName = "/tmp/books", "A. Writer"
+	s.Theme = "ocean"
 	if err := s.SetKey("save", "ctrl+s"); err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +48,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 	got, note := Load()
 	if note != "" || !got.Autosave || got.EditorWidth != 50 || got.Keys["save"] != "ctrl+s" || got.Keys["help"] != "f1" ||
-		got.DefaultSavePath != "/tmp/books" || got.AuthorName != "A. Writer" {
+		got.DefaultSavePath != "/tmp/books" || got.AuthorName != "A. Writer" || got.Theme != "ocean" {
 		t.Fatalf("note=%q got=%+v", note, got)
 	}
 }

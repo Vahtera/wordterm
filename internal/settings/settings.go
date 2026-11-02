@@ -40,6 +40,19 @@ var reserved = map[string]bool{"up": true, "down": true, "left": true, "right": 
 	"backspace": true, "delete": true, "home": true, "end": true, "pgup": true, "pgdown": true,
 	"tab": true, "shift+tab": true, "ctrl+z": true, "ctrl+y": true, "ctrl+c": true}
 
+// ThemeColors names a color for each part of the screen: a palette name such as
+// "dark_blue", a hex value such as "#336699", or "default" for the terminal's own color.
+type ThemeColors struct {
+	EditorBackground    string `toml:"editor_background,omitempty"`
+	NavigatorBackground string `toml:"navigator_background,omitempty"`
+	OverlayBackground   string `toml:"overlay_background,omitempty"`
+	NavigatorForeground string `toml:"navigator_foreground,omitempty"`
+	EditorForeground    string `toml:"editor_foreground,omitempty"`
+	OverlayForeground   string `toml:"overlay_foreground,omitempty"`
+	TitleForeground     string `toml:"title_foreground,omitempty"`
+	FrameForeground     string `toml:"frame_foreground,omitempty"`
+}
+
 type Settings struct {
 	EditorWidth      int               `toml:"editor_width"`      // 0 = default
 	WriteSize        int               `toml:"write_size"`        // 0 = same as editor width
@@ -48,7 +61,10 @@ type Settings struct {
 	AutosaveInterval int               `toml:"autosave_interval"` // seconds, minimum 5
 	DefaultSavePath  string            `toml:"default_save_path"` // parent folder for new projects
 	AuthorName       string            `toml:"author_name"`       // author of new projects
-	Keys             map[string]string `toml:"keys"`
+	Theme            string            `toml:"theme"` // default, high-contrast, pastel, sakura, ocean or user
+	// Themes optionally overrides single colors of a built-in theme, e.g. [themes.ocean].
+	Themes map[string]ThemeColors `toml:"themes,omitempty"`
+	Keys   map[string]string      `toml:"keys"`
 }
 
 func find(id string) (Action, bool) {
@@ -63,7 +79,7 @@ func find(id string) (Action, bool) {
 func NavOnly(id string) bool { a, ok := find(id); return ok && a.NavOnly }
 
 func Default() Settings {
-	s := Settings{WordWrap: true, AutosaveInterval: 60, Keys: map[string]string{}}
+	s := Settings{WordWrap: true, AutosaveInterval: 60, Theme: "default", Keys: map[string]string{}}
 	for _, a := range Actions {
 		s.Keys[a.ID] = a.Default
 	}
@@ -99,7 +115,7 @@ func Load() (Settings, string) {
 	if _, err := os.Stat(path); err != nil {
 		return s, ""
 	}
-	in := Settings{WordWrap: true, AutosaveInterval: 60}
+	in := Settings{WordWrap: true, AutosaveInterval: 60, Theme: "default"}
 	if _, err := toml.DecodeFile(path, &in); err != nil {
 		os.Rename(path, path+".broken")
 		return s, "Invalid config moved to config.toml.broken; using defaults"
@@ -108,6 +124,7 @@ func Load() (Settings, string) {
 	s.WordWrap, s.Autosave = in.WordWrap, in.Autosave
 	s.AutosaveInterval = max(in.AutosaveInterval, 5)
 	s.DefaultSavePath, s.AuthorName = in.DefaultSavePath, in.AuthorName
+	s.Theme, s.Themes = in.Theme, in.Themes
 	note := ""
 	for _, a := range Actions {
 		if k, ok := in.Keys[a.ID]; ok && k != a.Default {

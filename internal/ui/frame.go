@@ -26,34 +26,36 @@ type PaneContent struct {
 
 var invert = lipgloss.NewStyle().Reverse(true)
 
-func (p PaneContent) row(i, w int) string {
+func (p PaneContent) row(i, w int, fg, bg, titleFG string) string {
 	if i == 0 {
 		h := Pad(" "+p.Header, w)
 		if p.Focused {
-			return invert.Render(h)
+			h = invert.Render(h)
 		}
-		return h
+		return Paint(h, titleFG, bg)
 	}
 	if i-1 < len(p.Lines) {
-		return Pad(p.Lines[i-1], w)
+		return Paint(Pad(p.Lines[i-1], w), fg, bg)
 	}
-	return strings.Repeat(" ", w)
+	return Paint(strings.Repeat(" ", w), fg, bg)
 }
 
-// Frame draws the two-pane window with rounded Unicode borders.
-func Frame(l Layout, title string, nav, edit PaneContent, status string) string {
+// Frame draws the two-pane window with rounded Unicode borders, in the theme's colors.
+func Frame(l Layout, th Theme, title string, nav, edit PaneContent, status string) string {
 	bar := func(n int) string { return strings.Repeat("─", n) }
-	t := "─ " + title + " "
-	top := "╭" + t + bar(max(0, l.Width-2-ansi.StringWidth(t))) + "╮"
+	fr := func(s string) string { return Paint(s, th.FrameFG, th.NavBG) }
+	head := " " + title + " "
+	top := fr("╭─") + Paint(head, th.TitleFG, th.NavBG) + fr(bar(max(0, l.Width-3-ansi.StringWidth(head)))+"╮")
 
 	var b strings.Builder
 	b.WriteString(top + "\n")
 	for i := 0; i < l.PaneH; i++ {
-		b.WriteString("│" + nav.row(i, l.NavW) + "│" + edit.row(i, l.EditW) + "│\n")
+		b.WriteString(fr("│") + nav.row(i, l.NavW, th.NavFG, th.NavBG, th.TitleFG) + fr("│") +
+			edit.row(i, l.EditW, th.EditorFG, th.EditorBG, th.TitleFG) + fr("│") + "\n")
 	}
-	b.WriteString("├" + bar(l.NavW) + "┴" + bar(l.EditW) + "┤\n")
-	b.WriteString("│" + Pad(" "+status, l.Width-2) + "│\n")
-	b.WriteString("╰" + bar(l.Width-2) + "╯")
+	b.WriteString(fr("├"+bar(l.NavW)+"┴"+bar(l.EditW)+"┤") + "\n")
+	b.WriteString(fr("│") + Paint(Pad(" "+status, l.Width-2), th.NavFG, th.NavBG) + fr("│") + "\n")
+	b.WriteString(fr("╰" + bar(l.Width-2) + "╯"))
 	return b.String()
 }
 

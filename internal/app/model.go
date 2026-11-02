@@ -15,6 +15,7 @@ import (
 	"github.com/Vahtera/wordterm/internal/project"
 	"github.com/Vahtera/wordterm/internal/settings"
 	"github.com/Vahtera/wordterm/internal/storage"
+	"github.com/Vahtera/wordterm/internal/themes"
 	"github.com/Vahtera/wordterm/internal/ui"
 )
 
@@ -58,6 +59,8 @@ type Model struct {
 
 	welcome bool // built-in read-only help project (no project was given)
 
+	theme        ui.Theme // colors; the zero value = terminal colors
+	themeSel     *themeState
 	browse       *browseState // File > Open Project... folder browser
 	screenwriter bool
 	prevFocus    Focus
@@ -99,6 +102,11 @@ func (m Model) Session() *storage.Session { return m.sess }
 
 func New(sess *storage.Session, proj *project.Project, cfg settings.Settings, note string) Model {
 	m := Model{sess: sess, proj: proj, ed: editor.New(""), nav: navigator.New(), cfg: cfg, msg: note, lastAuto: time.Now()}
+	var tnote string
+	m.theme, tnote = themes.Resolve(cfg)
+	if m.msg == "" {
+		m.msg = tnote
+	}
 	m.openLast()
 	return m
 }
@@ -374,6 +382,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case m.rebind != nil:
 			m.rebindKey(k)
+		case m.themeSel != nil:
+			m.themeKey(k)
 		case m.browse != nil:
 			return m, m.browseKey(k)
 		case m.overlay != ovNone:
@@ -650,7 +660,7 @@ func (m Model) screenwriterView() string {
 		if i < len(rows) {
 			row = rows[i]
 		}
-		lines[i] = ui.Pad(margin+ui.Pad(row, cw), m.width)
+		lines[i] = m.theme.EditorPaint(ui.Pad(margin+ui.Pad(row, cw), m.width))
 	}
 	notice := ""
 	switch {
@@ -662,7 +672,7 @@ func (m Model) screenwriterView() string {
 		notice = m.msg
 	}
 	if notice != "" {
-		lines[m.height-1] = invert.Render(ui.Pad(" "+notice, m.width))
+		lines[m.height-1] = m.theme.OverlayPaint(invert.Render(ui.Pad(" "+notice, m.width)))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -684,6 +694,8 @@ func (m Model) applyOverlays(s string) string {
 		return ui.Overlay(s, box, x, y)
 	}
 	switch {
+	case m.themeSel != nil:
+		return center(m.themeBox())
 	case m.browse != nil:
 		return center(m.browseBox())
 	case m.rebind != nil:
@@ -733,7 +745,7 @@ func (m Model) View() tea.View {
 		case m.msg != "":
 			status += " | " + m.msg
 		}
-		s = m.applyOverlays(ui.Frame(l, title, nav, edit, status))
+		s = m.applyOverlays(ui.Frame(l, m.theme, title, nav, edit, status))
 	}
 	v := tea.NewView(s)
 	v.AltScreen = true

@@ -12,10 +12,7 @@ import (
 	"github.com/Vahtera/wordterm/internal/ui"
 )
 
-var (
-	invert   = lipgloss.NewStyle().Reverse(true)
-	boxStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-)
+var invert = lipgloss.NewStyle().Reverse(true)
 
 func onOff(b bool) string {
 	if b {
@@ -69,6 +66,7 @@ func (m Model) menus() []menuTab {
 			{label: "Rebind Keys", run: do(func(m *Model) { m.rebind = &rebindState{} })},
 			{label: "Word Wrap: " + onOff(m.cfg.WordWrap), run: do(func(m *Model) { m.toggleWrap() })},
 			{label: "Autosave: " + onOff(m.cfg.Autosave), run: do(func(m *Model) { m.toggleAutosave() })},
+			{label: "Change Theme...", run: do(func(m *Model) { m.openThemeChooser() })},
 			{label: "Default Save Path...", run: (*Model).askSavePath},
 			{label: "Author Name...", run: (*Model).askAuthor},
 		}},
@@ -142,7 +140,7 @@ func (m Model) menuBox() string {
 		}
 		lines = append(lines, row)
 	}
-	return boxStyle.Render(strings.Join(lines, "\n"))
+	return m.theme.Box(strings.Join(lines, "\n"))
 }
 
 func (m *Model) saveSettings() {

@@ -28,13 +28,13 @@ func (m Model) helpLines() []string {
 func (m Model) helpText() string { return strings.Join(m.helpLines(), "\n") }
 
 func (m Model) helpBox() string {
-	return boxStyle.Render(strings.Join(append(m.helpLines(), "", "Esc or Q closes"), "\n"))
+	return m.theme.Box(strings.Join(append(m.helpLines(), "", "Esc or Q closes"), "\n"))
 }
 
 func (m Model) aboutBox() string {
-	return boxStyle.Render(strings.Join([]string{
+	return m.theme.Box(strings.Join([]string{
 		"Wordterm", "Version " + Version, "",
-		"Copyright © 2026 Anna Vahtera.", "License: GNU GPL v3", "", "Esc or Q closes"}, "\n"))
+		"Copyright © 2026 The Wordterm authors", "License: GNU GPL v3", "", "Esc or Q closes"}, "\n"))
 }
 
 type rebindState struct {
@@ -58,7 +58,7 @@ func (m Model) rebindBox() string {
 		lines = append(lines, row)
 	}
 	lines = append(lines, "", "Esc (main menu) cannot be rebound.", r.msg, "Enter: change  D: default  Esc: back")
-	return boxStyle.Render(strings.Join(lines, "\n"))
+	return m.theme.Box(strings.Join(lines, "\n"))
 }
 
 func (m *Model) rebindKey(k string) {

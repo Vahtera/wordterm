@@ -168,5 +168,5 @@ func (m Model) browseBox() string {
 		lines = append(lines, " (no folders here)")
 	}
 	lines = append(lines, "", b.msg, "Enter: open/enter  Left: up  Esc: cancel")
-	return boxStyle.Render(strings.Join(lines, "\n"))
+	return m.theme.Box(strings.Join(lines, "\n"))
 }

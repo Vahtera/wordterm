@@ -24,6 +24,14 @@ Suggested: Kitty, GNOME Terminal / Konsole, Alacritty, WezTerm, Windows Terminal
 - [ ] Paste of several lines works (bracketed paste).
 - [ ] Alt/Ctrl combinations used for bindings are not intercepted.
 
+## Themes
+- [ ] Settings > Change Theme...: each built-in theme previews live; Esc restores the old one; Enter keeps it after restart.
+- [ ] Default looks exactly like before themes existed (terminal colors, no background painted).
+- [ ] With a theme, menus and dialogs drawn over the panes show no color glitches at their right edge.
+- [ ] Cursor, selected navigator row and focused pane title are clearly visible in every theme.
+- [ ] User Theme: edit `theme.conf` (for example `editor_foreground = "light_green"`), reselect User Theme, and the change shows; a typo shows a message and falls back to terminal colors.
+- [ ] 256-color and 16-color terminals still look acceptable (nearest colors).
+
 ## Unicode and layouts
 - [ ] Type and edit: å ä ö, é with combining accent, CJK (日本語), an emoji, right-to-left text (display order is not reordered; note any problems).
 - [ ] Cursor movement and Backspace treat each of these as one character; wrapping does not split them.

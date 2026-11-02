@@ -15,6 +15,7 @@ import (
 	"github.com/Vahtera/wordterm/internal/project"
 	"github.com/Vahtera/wordterm/internal/settings"
 	"github.com/Vahtera/wordterm/internal/storage"
+	"github.com/Vahtera/wordterm/internal/themes"
 )
 
 const usage = `usage:
@@ -86,6 +87,9 @@ func projectDir(args []string, cfg settings.Settings) (string, error) {
 
 func run(args []string) error {
 	cfg, note := settings.Load()
+	if err := themes.EnsureUserFile(); err != nil && note == "" { // theme.conf, default = no theme
+		note = "Cannot create theme.conf: " + err.Error()
+	}
 	sess, err := offerRecovery()
 	if err != nil {
 		return err
