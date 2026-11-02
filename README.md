@@ -9,6 +9,17 @@ Written in Go with Bubble Tea v2, Lip Gloss and Bubbles-era Charm libraries.
 
 ## Install / build
 
+>[!TIP]
+>Download ready-made binaries for Mac/Win/Linux from Releases.
+
+>[!NOTE]
+>macOS has stricter security. If you don't want to go through all the dialogs to grant access, run:
+>
+>`codesign --force --deep --sign - /path/to/wordterm`
+>
+>to locally sign the binary and allow macOS to run it without prompts.
+
+
 You need Go (the version in `go.mod`).
 
     go install github.com/Vahtera/wordterm@latest     # installs the `wordterm` command
