@@ -14,8 +14,10 @@ Written in Go with Bubble Tea v2, Lip Gloss and Bubbles-era Charm libraries.
 
 >[!NOTE]
 >macOS has stricter security. If you don't want to go through all the dialogs to grant access, run:
+>
 >`codesign --force --deep --sign - /path/to/wordterm`
->to locally sign the binary and all macOS to run it without prompts.
+>
+>to locally sign the binary and allow macOS to run it without prompts.
 
 
 You need Go (the version in `go.mod`).
